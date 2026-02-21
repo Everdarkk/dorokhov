@@ -1,0 +1,11 @@
+@font-face {
+  font-family: 'ICTV';
+  src: url('$lib/fonts/ICTV-Thin.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'ICTV', sans-serif;
+}
