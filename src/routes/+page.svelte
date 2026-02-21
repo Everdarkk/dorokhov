@@ -3,7 +3,14 @@
     import Title from "$lib/components/Title.svelte"
     import Indicator from "$lib/components/Indicator.svelte"
     import Section from "$lib/components/Section.svelte"
+    import Circles from "$lib/components/Circles.svelte"
 </script>
+
+<!-- STRUCTURE -->
+<Circles 
+    appearDelay={1000} 
+    showLabel={true}
+/>
 
 <!--
   Each <Section> takes 100dvh in the normal flow (for snapping + view-timeline).
