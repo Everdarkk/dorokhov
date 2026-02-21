@@ -1,40 +1,46 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
+  // ─── Types ────────────────────────────────────────────────────────────────
+
   interface LetterState {
     char: string;
     isSpace: boolean;
     visible: boolean;
   }
 
-  // --- Props ---
+  // ─── Props ────────────────────────────────────────────────────────────────
+
   export let title: string = 'Welcome';
   export let subtitle: string = 'Something worth reading';
   export let subtitle2: string = 'And seeing by yourself';
   export let letterDelay: number = 200;
   export let startDelay: number = 400;
   export let dropDistance: number = 36;
-  /** Max rotation in degrees */
   export let maxTilt: number = 10;
-  /** How lazily the tilt follows the mouse (0 = instant, higher = lazier) */
   export let lerpFactor: number = 0.06;
+  export let intersectionThreshold: number = 0.5;
 
-  // --- Letter animation state ---
+  // ─── State ────────────────────────────────────────────────────────────────
+
   let letters: LetterState[] = [];
   let subtitleVisible: boolean = false;
   let subtitle2Visible: boolean = false;
 
-  // --- Tilt state ---
   let currentRotX: number = 0;
   let currentRotY: number = 0;
   let targetRotX: number = 0;
   let targetRotY: number = 0;
 
-  let rafId: number;
   let container: HTMLDivElement;
+  let rafId: number;
+  let observer: IntersectionObserver;
+  let pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   function buildLetters(text: string): LetterState[] {
-    return text.split('').map((char) => ({
+    return text.split('').map((char): LetterState => ({
       char,
       isSpace: char === ' ',
       visible: false,
@@ -45,14 +51,66 @@
     return a + (b - a) * t;
   }
 
-  function onMouseMove(e: MouseEvent): void {
+  function findSnapSection(el: HTMLElement): HTMLElement {
+    let node: HTMLElement | null = el.parentElement;
+    while (node) {
+      if (node.classList.contains('snap-section')) return node;
+      node = node.parentElement;
+    }
+    return el;
+  }
+
+  // ─── Animation ────────────────────────────────────────────────────────────
+
+  /**
+   * Cancel timeouts and snap everything to hidden — no transitions fire.
+   * Called when the section LEAVES the viewport so the next entry starts clean.
+   */
+  function hideImmediately(): void {
+    for (const id of pendingTimeouts) clearTimeout(id);
+    pendingTimeouts = [];
+
+    // Temporarily disable transitions so the reset is instant / invisible.
+    if (container) container.classList.add('no-transition');
+
+    letters = buildLetters(title);
+    subtitleVisible = false;
+    subtitle2Visible = false;
+
+    // Re-enable transitions on the next frame so the enter animation plays smoothly.
+    requestAnimationFrame(() => {
+      if (container) container.classList.remove('no-transition');
+    });
+  }
+
+  /** Animate letters in — called when the section ENTERS the viewport. */
+  function playAnimation(): void {
+    letters.forEach((_, i) => {
+      const id = setTimeout(() => {
+        letters[i].visible = true;
+        letters = [...letters];
+      }, startDelay + i * letterDelay);
+      pendingTimeouts.push(id);
+    });
+
+    const totalLetterTime = startDelay + title.length * letterDelay;
+
+    pendingTimeouts.push(
+      setTimeout(() => { subtitleVisible = true; }, totalLetterTime + 300),
+      setTimeout(() => { subtitle2Visible = true; }, totalLetterTime + 800),
+    );
+  }
+
+  // ─── Tilt ─────────────────────────────────────────────────────────────────
+
+  function handleMouseMove(e: MouseEvent): void {
     const nx = (e.clientX / window.innerWidth) * 2 - 1;
     const ny = (e.clientY / window.innerHeight) * 2 - 1;
     targetRotX = -ny * maxTilt;
     targetRotY = nx * maxTilt;
   }
 
-  function onMouseLeave(): void {
+  function handleMouseLeave(): void {
     targetRotX = 0;
     targetRotY = 0;
   }
@@ -69,33 +127,46 @@
     rafId = requestAnimationFrame(tick);
   }
 
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
+
   onMount(() => {
+    // Start with letters hidden and ready.
     letters = buildLetters(title);
 
-    letters.forEach((_, i) => {
-      setTimeout(() => {
-        letters[i].visible = true;
-        letters = [...letters];
-      }, startDelay + i * letterDelay);
-    });
+    const target = findSnapSection(container);
 
-    const totalLetterTime = startDelay + title.length * letterDelay;
+    observer = new IntersectionObserver(
+      (entries: IntersectionObserverEntry[]) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            // Section entered — play the drop-in animation.
+            playAnimation();
+          } else {
+            // Section left — instantly reset so next entry starts from hidden.
+            hideImmediately();
+          }
+        }
+      },
+      { threshold: intersectionThreshold },
+    );
 
-    setTimeout(() => { subtitleVisible = true; }, totalLetterTime + 300);
-    setTimeout(() => { subtitle2Visible = true; }, totalLetterTime + 800);
+    observer.observe(target);
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseleave', onMouseLeave);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
     rafId = requestAnimationFrame(tick);
 
     return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseleave', onMouseLeave);
+      for (const id of pendingTimeouts) clearTimeout(id);
+      observer.disconnect();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
       cancelAnimationFrame(rafId);
     };
   });
 </script>
 
+<!-- ─── Markup ─────────────────────────────────────────────────────────── -->
 <div class="container" bind:this={container}>
   <h1 class="title" aria-label={title}>
     {#each letters as letter, i (i)}
@@ -120,6 +191,7 @@
   </p>
 </div>
 
+<!-- ─── Styles ────────────────────────────────────────────────────────── -->
 <style>
   .container {
     display: flex;
@@ -131,6 +203,12 @@
     will-change: transform;
     transform-style: preserve-3d;
     transform-origin: center center;
+  }
+
+  /* Suppress all child transitions during an instant reset. */
+  .container.no-transition *,
+  .container.no-transition {
+    transition: none !important;
   }
 
   .title {

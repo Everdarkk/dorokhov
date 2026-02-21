@@ -15,6 +15,7 @@
   export let id: string = '';
 </script>
 
+<!-- STRUCTURE -->
 <section
   class="snap-section"
   class:effect-blink={effect === 'blink'}
@@ -27,6 +28,7 @@
   </div>
 </section>
 
+<!-- STYLE -->
 <style>
   /* ─────────────────────────────────────────────
      The section itself lives in normal flow:
