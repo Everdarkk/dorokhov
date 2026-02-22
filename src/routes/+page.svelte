@@ -4,11 +4,12 @@
     import Indicator from "$lib/components/Indicator.svelte"
     import Section from "$lib/components/Section.svelte"
     import Circles from "$lib/components/Circles.svelte"
+    import About from "$lib/components/About.svelte"
 </script>
 
 <!-- STRUCTURE -->
 <Circles 
-    appearDelay={1000} 
+    appearDelay={3000} 
     showLabel={true}
 />
 
@@ -20,7 +21,7 @@
   Add as many <Section> blocks as you need. Mix effect types freely.
 -->
 
-<Section id="hero" effect="blink">
+<Section id="main" effect="blink">
     <Background />
     <Title
         title='Вітаю!'
@@ -38,7 +39,7 @@
     />
 </Section>
 
-<Section id="next" effect="blink">
+<Section id="about" effect="blink">
     <Background 
         colorBg1={'rgb(0,0,0)'}
         colorBg2={'rgb(14,14,14)'}
@@ -49,6 +50,7 @@
         color5={'153,0,0'}
         colorInteractive={'226,16,58'}
     />
+    <About /> 
     <Indicator
         appearDelay={3000}
         color='azure'
@@ -57,15 +59,6 @@
         showLabel={false}
     />
 </Section>
-export let colorBg1: string = 'rgb(0,0,0)';
-  export let colorBg2: string = 'rgb(14,14,14)';
-  
-  export let color1: string = '46,17,17';
-  export let color2: string = '145,31,31';
-  export let color3: string = '146,0,42';
-  export let color4: string = '119,21,21';
-  export let color5: string = '153,0,0'
-  export let colorInteractive: string = '226,16,58';
 
 <!-- Add your next sections here, e.g.: -->
 <!-- <Section id="about"   effect="blink"> ... </Section> -->

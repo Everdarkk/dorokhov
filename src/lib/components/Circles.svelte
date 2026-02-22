@@ -88,7 +88,7 @@
   });
 </script>
 
-<!-- ─── Markup ──────────────────────────────────────────────────────────── -->
+<!-- STRUCTURE -->
 <nav
   bind:this={nav}
   class="section-nav"
@@ -120,7 +120,7 @@
   {/each}
 </nav>
 
-<!-- ─── Styles ─────────────────────────────────────────────────────────── -->
+<!-- STYLE -->
 <style>
   .section-nav {
     position: fixed;
