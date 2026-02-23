@@ -16,12 +16,10 @@
 <!--
   Each <Section> takes 100dvh in the normal flow (for snapping + view-timeline).
   Its inner .content is position: fixed, so sections cross-fade without
-  a visible page scroll — exactly like the Giana codepen.
-
-  Add as many <Section> blocks as you need. Mix effect types freely.
+  a visible page scroll
 -->
 
-<Section id="main" effect="blink">
+<Section id="Головна" effect="blink">
     <Background />
     <Title
         title='Вітаю!'
@@ -39,7 +37,7 @@
     />
 </Section>
 
-<Section id="about" effect="blink">
+<Section id="Про мене" effect="blink">
     <Background 
         colorBg1={'rgb(0,0,0)'}
         colorBg2={'rgb(14,14,14)'}
@@ -60,11 +58,28 @@
     />
 </Section>
 
-<!-- Add your next sections here, e.g.: -->
-<!-- <Section id="about"   effect="blink"> ... </Section> -->
-<!-- <Section id="work"    effect="slide"> ... </Section> -->
-<!-- <Section id="contact" effect="zoom">  ... </Section> -->
+<Section id="Стек" effect="blink">
+    <Background 
+        colorBg1={'rgb(0,255,195)'}
+        colorBg2={'rgb(92,255,217)'}
+        color1={'144,255,229'}
+        color2={'192,255,240'}
+        color3={'231,255,249'}
+        color4={'79,250,184'}
+        color5={'148,250,211'}
+        colorInteractive={'0,250,154'}
+    />
 
+    <Indicator
+        appearDelay={3000}
+        color='azure'
+        width={32}
+        size={32}
+        showLabel={false}
+    />
+</Section>
+
+<!-- STYLE -->
 <style>
     :global(html) {
         /* Snap container */
