@@ -60,14 +60,14 @@
 
 <Section id="Стек" effect="blink">
     <Background 
-        colorBg1={'rgb(0,255,195)'}
-        colorBg2={'rgb(92,255,217)'}
-        color1={'144,255,229'}
-        color2={'192,255,240'}
-        color3={'231,255,249'}
-        color4={'79,250,184'}
-        color5={'148,250,211'}
-        colorInteractive={'0,250,154'}
+        colorBg1={'rgb(26,112,48)'}
+        colorBg2={'rgb(52,198,44)'}
+        color1={'129,194,77'}
+        color2={'178,239,116'}
+        color3={'244,242,222'}
+        color4={'236,243,158'}
+        color5={'139,169,85'}
+        colorInteractive={'216,179,42'}
     />
 
     <Indicator
