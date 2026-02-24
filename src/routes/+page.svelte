@@ -5,6 +5,7 @@
     import Section from "$lib/components/Section.svelte"
     import Circles from "$lib/components/Circles.svelte"
     import About from "$lib/components/About.svelte"
+    import Stack from "$lib/components/Stack.svelte"
 </script>
 
 <!-- STRUCTURE -->
@@ -60,16 +61,16 @@
 
 <Section id="Стек" effect="blink">
     <Background 
-        colorBg1={'rgb(26,112,48)'}
-        colorBg2={'rgb(52,198,44)'}
-        color1={'129,194,77'}
-        color2={'178,239,116'}
-        color3={'244,242,222'}
-        color4={'236,243,158'}
-        color5={'139,169,85'}
-        colorInteractive={'216,179,42'}
+        colorBg1={'rgb(64,64,81)'}
+        colorBg2={'rgb(40,32,45)'}
+        color1={'208,208,208'}
+        color2={'248,248,248'}
+        color3={'154,147,171'}
+        color4={'32,32,32'}
+        color5={'255,241,153'}
+        colorInteractive={'195,164,195'}
     />
-
+    <Stack />
     <Indicator
         appearDelay={3000}
         color='azure'
