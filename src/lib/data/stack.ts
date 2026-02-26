@@ -5,6 +5,8 @@ import svelte     from '$lib/assets/icons/svelte.svg'
 import supabase   from '$lib/assets/icons/supabase.svg'
 import git        from '$lib/assets/icons/git.svg'
 import vercel     from '$lib/assets/icons/vercel.svg'
+import figma     from '$lib/assets/icons/figma.svg'
+import vscode     from '$lib/assets/icons/vscode.svg'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -84,7 +86,7 @@ export const techCards: TechCard[] = [
   },
   {
     id: 5,
-    name: 'Supabase / PostgreSQL',
+    name: 'Supabase',
     icon: supabase,
     summary: 'Supabase — це сучасна відкрита платформа, яка надає розробникам усі необхідні інструменти для роботи з даними та користувачами «з коробки». Вона дозволяє миттєво створити надійну базу даних, налаштувати реєстрацію через Google або пошту та зберігати файли, не витрачаючи тижні на написання складного серверного коду.',
     rx: '40% 60% 48% 52%',
@@ -117,5 +119,29 @@ export const techCards: TechCard[] = [
     morphDelay: -5,
     accent1: '#1a1a2e',
     accent2: '#c8c8d4',
+  },
+  {
+    id: 8,
+    name: 'Figma',
+    icon: figma,
+    summary: 'Figma — це провідний інструмент для дизайну інтерфейсів, у якому створюються візуальні концепції майбутніх сайтів. Вміння працювати з Figma дозволяє розробнику точно переносити дизайнерські рішення в код, зберігаючи кожен піксель, відступ та анімацію саме такими, якими вони були задумані.',
+    rx: '42% 58% 35% 65%',
+    ry: '55% 45% 62% 38%',
+    morphDuration: 12,
+    morphDelay: -1,
+    accent1: '#2c1e31',
+    accent2: '#a259ff'
+  },
+  {
+    id: 9,
+    name: 'VS Code',
+    icon: vscode,
+    summary: 'Visual Studio Code — це основний робочий інструмент, потужний редактор коду з безмежними можливостями налаштування. Завдяки величезній екосистемі розширень та інтегрованому терміналу, він перетворює процес написання коду на швидкий, інтелектуальний та приємний досвід.',
+    rx: '46% 54% 50% 50%',
+    ry: '52% 48% 58% 42%',
+    morphDuration: 11.5,
+    morphDelay: -4.5,
+    accent1: '#00223e',
+    accent2: '#007acc',
   },
 ]

@@ -22,6 +22,13 @@
   let titleVisible               = false
   let cardVisible: boolean[]     = techCards.map(() => false)
 
+  /**
+   * Gates popup hover interactions.
+   * Stays false until the last card's entrance transition finishes —
+   * prevents the popup from appearing over cards that are still "popping" in.
+   */
+  let popupEnabled = false
+
   // ─── Popup state ─────────────────────────────────────────────────────────────
 
   /** Index of the currently hovered card, or null when no card is hovered */
@@ -94,6 +101,16 @@
         cardVisible = [...cardVisible]
       }, cardsStart + i * CARD_STAGGER)
     })
+
+    // Enable popup only after the LAST card finishes its entrance transition.
+    // Last card starts at (n-1) * CARD_STAGGER after cardsStart.
+    // CSS entrance transition is 0.7s — must match .blob transition duration.
+    const ENTRANCE_TRANSITION_MS = 700
+    const lastCardDelay = cardsStart + (techCards.length - 1) * CARD_STAGGER
+    scheduleTimeout(
+      () => { popupEnabled = true },
+      lastCardDelay + ENTRANCE_TRANSITION_MS,
+    )
   }
 
   /**
@@ -109,6 +126,7 @@
     titleVisible   = false
     cardVisible    = techCards.map(() => false)
     hoveredIndex   = null
+    popupEnabled   = false
 
     cardEls.forEach((el) => {
       if (!el) return
@@ -249,6 +267,9 @@
   }
 
   function onCardMouseEnter(i: number): void {
+    // Block hover until all entrance animations have finished.
+    if (!popupEnabled) return
+
     hoveredIndex = i
     // Snap popup position to cursor instantly on first enter —
     // avoids it sliding in from (0,0) on first hover.
@@ -644,7 +665,7 @@
     left: 0;
     z-index: 9999;
     width: max-content;
-    max-width: 268px;
+    max-width: 300px;
     min-width: 180px;
     pointer-events: none;
 
@@ -688,7 +709,7 @@
 
   .popup__name {
     font-family: 'Unbounded', sans-serif;
-    font-size: 0.82rem;
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     /* Accent colour from the active blob — set by JS each frame */
@@ -697,8 +718,8 @@
   }
 
   .popup__summary {
-    font-family: 'Onest', sans-serif;
-    font-size: 0.78rem;
+    font-family: 'ICTV', sans-serif;
+    font-size: 1rem;
     line-height: 1.6;
     color: rgba(255,255,255,0.72);
     margin: 0;
