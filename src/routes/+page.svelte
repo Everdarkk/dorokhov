@@ -28,6 +28,8 @@
         subtitle2='і я займаюсь веб-розробкою'
         maxTilt={3}
         lerpFactor={0.06}
+        letterDelay={100}
+        dropDistance={100}
     />
     <Indicator
         appearDelay={3000}
