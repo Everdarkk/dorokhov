@@ -1,12 +1,10 @@
-// Tech icon imports — Vite resolves and hashes these at build time.
-// Place SVG files at: src/lib/assets/icons/tech/
-import icTs         from '$lib/assets/icons/typescript.svg'
-import icCss        from '$lib/assets/icons/css.svg'
-import icReact      from '$lib/assets/icons/react.svg'
-import icSvelte     from '$lib/assets/icons/svelte.svg'
-import icSupabase   from '$lib/assets/icons/supabase.svg'
-import icGit        from '$lib/assets/icons/git.svg'
-import icVercel     from '$lib/assets/icons/vercel.svg'
+import ts         from '$lib/assets/icons/typescript.svg'
+import css        from '$lib/assets/icons/css.svg'
+import react      from '$lib/assets/icons/react.svg'
+import svelte     from '$lib/assets/icons/svelte.svg'
+import supabase   from '$lib/assets/icons/supabase.svg'
+import git        from '$lib/assets/icons/git.svg'
+import vercel     from '$lib/assets/icons/vercel.svg'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,8 +37,8 @@ export const techCards: TechCard[] = [
   {
     id: 1,
     name: 'TypeScript',
-    icon: icTs,
-    summary: 'Статична типізація для JS. Ловить помилки ще до запуску — менше багів, впевненіший рефакторинг.',
+    icon: ts,
+    summary: 'TypeScript — це «розумна» надбудова над JavaScript, яка додає в код чіткі правила та підказки щодо типів даних. Вона допомагає знаходити помилки ще під час написання коду, роблячи створення складних сайтів та програм надійнішим і зрозумілішим.',
     rx: '58% 42% 52% 48%',
     ry: '44% 56% 42% 58%',
     morphDuration: 9,
@@ -51,8 +49,8 @@ export const techCards: TechCard[] = [
   {
     id: 2,
     name: 'CSS',
-    icon: icCss,
-    summary: 'Сучасний CSS — grid, container queries, custom properties. Жодних зайвих бібліотек.',
+    icon: css,
+    summary: 'CSS3 — це сучасний стандарт стилів, який відповідає за зовнішній вигляд вебсторінок, дозволяючи налаштовувати кольори, шрифти та розташування елементів. Завдяки йому сайти в буквальному сенсі оживають та привабливими. Повний контроль над анімаціями та адаптивністю під мобільні пристрої.',
     rx: '44% 56% 62% 38%',
     ry: '60% 40% 48% 52%',
     morphDuration: 11,
@@ -63,8 +61,8 @@ export const techCards: TechCard[] = [
   {
     id: 3,
     name: 'React / Next.js',
-    icon: icReact,
-    summary: 'Компонентний UI + SSR/SSG від Next.js. Ідеально для SEO та великих продуктових застосунків.',
+    icon: react,
+    summary: 'Компонентний користувацький інтерфейс найпопулярнішої бібліотеки React та потужний набір інструментів її надбудови - Next.JS - для серверної генерації сторінок та метаданих, ідеально для SEO та великих продуктових застосунків.',
     rx: '62% 38% 44% 56%',
     ry: '38% 62% 56% 44%',
     morphDuration: 10,
@@ -75,8 +73,8 @@ export const techCards: TechCard[] = [
   {
     id: 4,
     name: 'Svelte / SvelteKit',
-    icon: icSvelte,
-    summary: 'Компілюється до чистого JS — нуль рантайму. Найшвидший старт і найменший bundle.',
+    icon: svelte,
+    summary: 'Svelte та SvelteKit — це інноваційний інструмент для створення інтерфейсів та каркас, побудований над ним, який автоматично вирішує питання навігації між сторінками та обробки даних та на відміну від інших бібліотек, виконує всю складну роботу ще під час збірки проєкту, а не в браузері користувача. Завдяки цьому сайти виходять неймовірно швидкими, а код - лаконічним.',
     rx: '48% 52% 58% 42%',
     ry: '54% 46% 40% 60%',
     morphDuration: 13,
@@ -87,8 +85,8 @@ export const techCards: TechCard[] = [
   {
     id: 5,
     name: 'Supabase / PostgreSQL',
-    icon: icSupabase,
-    summary: 'Open-source Firebase-альтернатива: auth, realtime, storage і повноцінний Postgres під капотом.',
+    icon: supabase,
+    summary: 'Supabase — це сучасна відкрита платформа, яка надає розробникам усі необхідні інструменти для роботи з даними та користувачами «з коробки». Вона дозволяє миттєво створити надійну базу даних, налаштувати реєстрацію через Google або пошту та зберігати файли, не витрачаючи тижні на написання складного серверного коду.',
     rx: '40% 60% 48% 52%',
     ry: '56% 44% 60% 40%',
     morphDuration: 12,
@@ -99,8 +97,8 @@ export const techCards: TechCard[] = [
   {
     id: 6,
     name: 'Git / GitHub',
-    icon: icGit,
-    summary: 'Контроль версій + колаборація. Pull request-и, CI/CD-тригери та чиста історія змін.',
+    icon: git,
+    summary: 'Git — це розумна система контролю версій, яка запам’ятовує кожну зміну в коді вашого проєкту та дозволяє миттєво повернутися до будь-якої попередньої точки в часі. GitHub — це найбільша у світі хмарна платформа для зберігання Git-проєктів, яка слугує «соціальною мережею» для розробників та місцем для спільної роботи.',
     rx: '54% 46% 40% 60%',
     ry: '42% 58% 54% 46%',
     morphDuration: 10,
@@ -111,8 +109,8 @@ export const techCards: TechCard[] = [
   {
     id: 7,
     name: 'Vercel',
-    icon: icVercel,
-    summary: 'Edge-деплой за секунди. Preview-посилання для кожного PR, аналітика та Web Vitals з коробки.',
+    icon: vercel,
+    summary: 'Vercel — це сучасна хмарна платформа, яка дозволяє миттєво публікувати ваші вебсайти в інтернеті прямо з коду на GitHub. Вона бере на себе всю складну роботу з налаштування серверів, щоб ваш сайт завантажувався блискавично швидко в будь-якій точці світу.',
     rx: '50% 50% 56% 44%',
     ry: '46% 54% 44% 56%',
     morphDuration: 11,

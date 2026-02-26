@@ -13,12 +13,7 @@ import speedometer from '$lib/assets/icons/speedometer.svg'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface BlobCardLine {
-  /** Display text for this line */
   text: string
-  /**
-   * Resolved asset URL for the line icon (imported via Vite).
-   * Optional — text-only lines are supported.
-   */
   icon?: string
 }
 

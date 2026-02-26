@@ -28,15 +28,30 @@
   let hoveredIndex: number | null = null
 
   /**
-   * Current popup position in viewport px — updated every RAF frame via lerp
-   * so the popup "floats" after the cursor rather than snapping.
+   * Lerped popup anchor position (top-left corner target before offset).
+   * Updated every RAF frame so the popup floats after the cursor.
    */
   let popupX = 0
   let popupY = 0
 
-  /** Raw cursor position — the lerp target */
+  /** Raw cursor position — lerp target for popup anchor */
   let cursorX = 0
   let cursorY = 0
+
+  /**
+   * Popup internal tilt — how much the content leans toward the cursor
+   * relative to the popup's own centre. Updated every RAF frame.
+   * Drives CSS vars --tilt-x / --tilt-y on the popup element.
+   */
+  let popupTiltX = 0
+  let popupTiltY = 0
+
+  /**
+   * Opacity target: 1 when hovered, 0 otherwise.
+   * We lerp the actual rendered opacity in CSS via a variable so the
+   * fade is frame-accurate rather than relying on CSS transition alone.
+   */
+  let popupOpacity = 0
 
   // ─── DOM refs ────────────────────────────────────────────────────────────────
 
@@ -120,8 +135,6 @@
   // ─── Mouse tracking — 3-D tilt + popup follow ────────────────────────────────
 
   const MAX_DIST  = 340
-  /** Lerp factor for the popup position — lower = more "floaty" lag */
-  const POPUP_LERP = 0.12
   let rafMouseId: number
   let rafPopupId: number
 
@@ -159,37 +172,77 @@
   }
 
   /**
-   * RAF loop that lerps the popup position toward the cursor.
-   * Runs continuously while the component is mounted so the popup
-   * glides smoothly even when the cursor moves fast.
+   * Main RAF loop — runs every frame while the component is mounted.
+   *
+   * Responsibilities:
+   *   1. Lerp popup anchor (x/y) toward raw cursor — "floaty" follow
+   *   2. Compute popup tilt from cursor position relative to popup centre
+   *   3. Lerp opacity toward target (1 = visible, 0 = hidden) — smooth fade
+   *   4. Write everything as inline style/CSS vars on popupEl
    */
   function tickPopup(): void {
-    popupX = lerp(popupX, cursorX, POPUP_LERP)
-    popupY = lerp(popupY, cursorY, POPUP_LERP)
+    const LERP_POS     = 0.10   // position lag — lower = more floaty
+    const LERP_OPACITY = 0.08   // fade speed — lower = slower fade
+    const LERP_TILT    = 0.08   // tilt responsiveness
+    const MAX_TILT_DEG = 10     // max popup lean in degrees
 
-    if (popupEl && hoveredIndex !== null) {
-      // Offset so the popup doesn't sit directly under the cursor.
-      // Clamp to viewport edges so it never clips off-screen.
-      const pw   = popupEl.offsetWidth  || 240
-      const ph   = popupEl.offsetHeight || 100
-      const vw   = window.innerWidth
-      const vh   = window.innerHeight
-      const ox   = 20   // horizontal offset from cursor
-      const oy   = -ph - 16 // appear above cursor
+    popupX = lerp(popupX, cursorX, LERP_POS)
+    popupY = lerp(popupY, cursorY, LERP_POS)
 
-      let x = popupX + ox
-      let y = popupY + oy
+    const opacityTarget = hoveredIndex !== null ? 1 : 0
+    popupOpacity = lerp(popupOpacity, opacityTarget, LERP_OPACITY)
 
-      // Flip to right side if too close to left edge
-      if (x < 12) x = popupX - pw - ox
-      // Flip below if too close to top
-      if (y < 12) y = popupY + 24
-      // Clamp right edge
-      if (x + pw > vw - 12) x = vw - pw - 12
-      // Clamp bottom edge
-      if (y + ph > vh - 12) y = vh - ph - 12
+    if (popupEl) {
+      const pw = popupEl.offsetWidth  || 260
+      const ph = popupEl.offsetHeight || 110
+      const vw = window.innerWidth
+      const vh = window.innerHeight
 
-      popupEl.style.transform = `translate(${x}px, ${y}px)`
+      // Default: appear above-right of cursor
+      const OX =  20
+      const OY = -ph - 16
+
+      let x = popupX + OX
+      let y = popupY + OY
+
+      // Flip left if would clip right edge
+      if (x + pw > vw - 12) x = popupX - pw - OX
+      // Flip below if would clip top
+      if (y < 12)            y = popupY + 24
+      // Hard clamp
+      x = Math.max(12, Math.min(x, vw - pw - 12))
+      y = Math.max(12, Math.min(y, vh - ph - 12))
+
+      // Tilt: map cursor position relative to popup centre → rotation
+      const pcx = x + pw / 2
+      const pcy = y + ph / 2
+      const tiltTargetY =  ((cursorX - pcx) / (pw / 2)) * MAX_TILT_DEG
+      const tiltTargetX = -((cursorY - pcy) / (ph / 2)) * MAX_TILT_DEG
+
+      popupTiltX = lerp(popupTiltX, tiltTargetX, LERP_TILT)
+      popupTiltY = lerp(popupTiltY, tiltTargetY, LERP_TILT)
+
+      // Scale: 0.82 when hidden → 1.0 when fully visible, slight overshoot feel
+      const scaleVal = 0.82 + popupOpacity * 0.18
+
+      // Blur: 6px hidden → 0px visible
+      const blurVal = (1 - popupOpacity) * 6
+
+      popupEl.style.transform =
+        `translate(${x}px, ${y}px) ` +
+        `perspective(600px) rotateX(${popupTiltX}deg) rotateY(${popupTiltY}deg) ` +
+        `scale(${scaleVal})`
+
+      popupEl.style.opacity    = String(Math.max(0, Math.min(1, popupOpacity)))
+      popupEl.style.filter     = `blur(${blurVal.toFixed(2)}px)`
+      popupEl.style.visibility = popupOpacity > 0.01 ? 'visible' : 'hidden'
+
+      // Pass accent colour for border/name gradient
+      const card = hoveredIndex !== null ? techCards[hoveredIndex] : null
+      if (card) {
+        popupEl.style.setProperty('--pop-accent', card.accent2)
+        popupEl.style.setProperty('--pop-accent1', card.accent1)
+      }
     }
 
     rafPopupId = requestAnimationFrame(tickPopup)
@@ -258,7 +311,7 @@
   <header class="stack__header">
     <span class="stack__eyebrow" class:visible={eyebrowVisible}>технології</span>
     <h2 class="stack__title" class:visible={titleVisible}>
-      Мій<br /><em>стек</em>
+      Мій <em>стек</em>
     </h2>
   </header>
 
@@ -306,23 +359,22 @@
 
   <!--
     Cursor-following popup.
-    Position is driven by the tickPopup RAF loop via inline transform.
-    Visibility toggled by hoveredIndex — CSS handles fade in/out.
-    bind:this lets the RAF loop read offsetWidth/Height for clamping.
+    ALL visual state (position, opacity, scale, blur, tilt, colours) is driven
+    by the tickPopup RAF loop via inline styles — no CSS transitions needed.
+    bind:this lets the loop read offsetWidth/Height for clamping and tilt calc.
+    Content uses {#if activeCard} so it swaps cleanly when hovering between cards.
   -->
   <div
     class="popup"
-    class:popup--visible={activeCard !== null}
     bind:this={popupEl}
     aria-hidden="true"
-    style="--pop-accent: {activeCard?.accent2 ?? 'rgba(255,255,255,0.3)'}"
   >
     {#if activeCard}
       <div class="popup__header">
         <img
           class="popup__icon"
           src={activeCard.icon}
-          alt="Логотип технології"
+          alt=""
           aria-hidden="true"
           width="22"
           height="22"
@@ -451,7 +503,7 @@
     position: relative;
     will-change: transform, opacity, filter;
     cursor: pointer;
-    flex: 0 0 clamp(100px, 18vmin, 160px);
+    flex: 0 0 clamp(150px, 22vmin, 250px);
     aspect-ratio: 1;
 
     /* Hidden: collapsed, blurred bubble */
@@ -577,12 +629,14 @@
 
   /* ── Popup ───────────────────────────────────────────────────────────────────
 
-    Positioned fixed so it escapes any overflow:hidden ancestor.
-    transform is driven by the tickPopup RAF loop (translate(x,y)).
-    Opacity/visibility toggled by .popup--visible.
+    ALL visual state is driven by tickPopup RAF loop inline styles:
+      - transform: translate(x,y) perspective rotateX rotateY scale
+      - opacity
+      - filter: blur()
+      - visibility
+      - CSS vars: --pop-accent, --pop-accent1
 
-    Design: frosted-glass card with a thin gradient border matching the
-    hovered blob's accent colour.
+    CSS here only defines the static card appearance.
   ─────────────────────────────────────────────────────────────────────────── */
   .popup {
     position: fixed;
@@ -590,42 +644,31 @@
     left: 0;
     z-index: 9999;
     width: max-content;
-    max-width: 260px;
-    pointer-events: none; /* never blocks mouse events */
+    max-width: 268px;
+    min-width: 180px;
+    pointer-events: none;
 
-    /* Glass card */
-    background: rgba(20, 18, 28, 0.72);
-    backdrop-filter: blur(18px) saturate(1.4);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    border-radius: 16px;
-    padding: 0.85rem 1.1rem;
+    /* Frosted glass card */
+    background: rgba(16, 14, 24, 0.78);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    border-radius: 18px;
+    padding: 1rem 1.2rem;
 
-    /*
-      Gradient border: uses box-shadow + a pseudo border trick via
-      background-clip. We use outline + box-shadow so no pseudo-element needed.
-    */
-    outline: 1px solid transparent;
+    /* Gradient border rendered as layered box-shadow */
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--pop-accent) 40%, transparent 60%),
-      0 8px 32px rgba(0,0,0,0.45),
-      0 2px 8px rgba(0,0,0,0.3);
+      0 0 0 1px color-mix(in srgb, var(--pop-accent, #fff) 35%, transparent 65%),
+      inset 0 0 0 1px color-mix(in srgb, var(--pop-accent, #fff) 8%, transparent 92%),
+      0 12px 40px rgba(0,0,0,0.55),
+      0 3px 10px rgba(0,0,0,0.35);
 
-    /* Hidden state */
+    /* 3D tilt applied on the element itself — preserve-3d passes it to children */
+    transform-style: preserve-3d;
+    transform-origin: center bottom;
+
+    /* Start hidden — JS sets opacity/visibility/scale each frame */
     opacity: 0;
     visibility: hidden;
-    /* Scale down from centre on hide */
-    transform: translate(0, 0) scale(0.9);
-    transform-origin: bottom left;
-    transition:
-      opacity    0.2s ease,
-      visibility 0.2s ease;
-    /* Note: we do NOT transition transform here —
-       it is driven every frame by the RAF loop */
-  }
-
-  .popup--visible {
-    opacity: 1;
-    visibility: visible;
   }
 
   .popup__header {
@@ -645,15 +688,12 @@
 
   .popup__name {
     font-family: 'Unbounded', sans-serif;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     font-weight: 700;
-    color: #fff;
     letter-spacing: 0.02em;
-    /* Accent underline using the blob's colour */
-    background: linear-gradient(90deg, var(--pop-accent), var(--pop-accent));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    /* Accent colour from the active blob — set by JS each frame */
+    color: color-mix(in srgb, var(--pop-accent, #fff) 90%, white 10%);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--pop-accent, #fff) 40%, transparent 60%);
   }
 
   .popup__summary {
@@ -673,7 +713,7 @@
 
   @media (max-width: 380px) {
     .blob {
-      flex: 0 0 clamp(80px, 40vw, 120px);
+      flex: 0 0 clamp(100px, 42vw, 140px);
     }
   }
 </style>
