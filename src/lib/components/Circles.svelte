@@ -197,7 +197,7 @@
     left: calc(100% + 10px);
     white-space: nowrap;
     font-size: 0.72rem;
-    font-family: inherit;
+    font-family: "ICTV", sans-serif;
     color: var(--active-color);
     letter-spacing: 0.08em;
     text-transform: uppercase;

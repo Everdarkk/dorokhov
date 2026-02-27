@@ -454,7 +454,7 @@
     padding: 0.08em 0.5em;
     overflow: visible; /* letters can extend beyond heading box during stretch */
 
-    font-family: 'Dela Gothic One', sans-serif;
+    font-family: 'Bulbasaur', sans-serif;
     font-size: clamp(2.8rem, 9vw, 8.5rem);
     font-weight: 900;
     letter-spacing: 0.09em;
@@ -517,7 +517,6 @@
     font-family: 'ICTV', sans-serif;
     font-size: clamp(1rem, 2vw, 2rem);
     font-weight: 100;
-    letter-spacing: 0.05em;
     color: rgba(255, 255, 255, 0.70);
     text-shadow: 0 1px 10px rgba(255, 255, 255, 0.12);
     white-space: nowrap;
