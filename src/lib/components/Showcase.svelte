@@ -102,18 +102,24 @@
     currentPage * perPage + perPage,
   )
 
+  /**
+   * -1 = sliding left (going to next), +1 = sliding right (going to prev).
+   * Drives the CSS --slide-dir custom property for exit/enter animations.
+   */
+  let pageDir: -1 | 1 = -1
+
   function goToPage(idx: number): void {
     if (idx < 0 || idx >= pageCount) return
     if (idx === currentPage) return
 
-    // Reset card visibility so entrance animations replay on new page
-    cardVisible = pageProjects.map(() => false)
+    pageDir = idx > currentPage ? -1 : 1
+
+    cardVisible  = pageProjects.map(() => false)
     popupEnabled = false
     hoveredIndex = null
 
     currentPage = idx
 
-    // Briefly yield to let Svelte update pageProjects, then replay entrance
     requestAnimationFrame(() => {
       cardVisible = pageProjects.map(() => false)
       schedulePageEntrance()
@@ -136,6 +142,13 @@
    */
   let popupEnabled = false
 
+  // ─── Swipe hint ──────────────────────────────────────────────────────────────
+
+  /** Fades out once the user swipes or clicks a pagination dot for the first time */
+  let hintVisible = false
+
+  function dismissHint(): void { hintVisible = false }
+
   function schedulePageEntrance(): void {
     const count = pageProjects.length
     const cardsStart = 0
@@ -156,6 +169,7 @@
 
   function playAnimation(): void {
     scheduleTimeout(() => { eyebrowVisible = true }, INTRO_START_DELAY)
+    scheduleTimeout(() => { hintVisible = true },    INTRO_START_DELAY + 800)
     scheduleTimeout(() => { titleVisible   = true }, INTRO_START_DELAY + TITLE_AFTER_EYEBROW)
 
     const cardsStart = INTRO_START_DELAY + TITLE_AFTER_EYEBROW + CARDS_AFTER_HEADER
@@ -193,6 +207,8 @@
       el.style.transform = ''
       el.style.setProperty('--glow', '0')
     })
+
+    hintVisible = false
 
     requestAnimationFrame(() => {
       if (container) container.classList.remove('no-transition')
@@ -381,51 +397,56 @@
     }
   }
 
-  /**
-   * Guard the click from drag
-   */
-  function onCardClickGuard(e: MouseEvent): void {
-  if (dragDidChange) {
-    e.preventDefault()
-    e.stopPropagation()
-    dragDidChange = false
-  }
-}
+
 
   // ─── Drag-to-paginate (desktop) ───────────────────────────────────────────────
 
-  /** Minimum horizontal drag distance (px) to trigger a page change */
   const DRAG_THRESHOLD = 60
 
-  let isDragging       = false
-  let dragStartX       = 0
-  let dragCurrentX     = 0
-  /** True when the drag resolved to a page change — suppresses click events */
-  let dragDidChange    = false
+  let isDragging    = false
+  let dragStartX    = 0
+  let dragCurrentX  = 0
+  /**
+   * True when pointerup confirmed a drag (delta > threshold).
+   * Read by onLinkClick to block href navigation after a swipe.
+   */
+  let dragDidChange = false
 
-  function onPointerDown(e: PointerEvent): void {
+  function onGridPointerDown(e: PointerEvent): void {
     if ((e.target as HTMLElement).closest('.pagination')) return
+    if (e.button !== 0 && e.pointerType === 'mouse') return
     isDragging    = true
     dragDidChange = false
     dragStartX    = e.clientX
     dragCurrentX  = e.clientX
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    // ⚠️ NO setPointerCapture — it kills click delivery to child <a> elements
   }
 
-  function onPointerMove(e: PointerEvent): void {
+  function onWindowPointerMove(e: PointerEvent): void {
     if (!isDragging) return
     dragCurrentX = e.clientX
   }
 
-  function onPointerUp(e: PointerEvent): void {
+  function onWindowPointerUp(_e: PointerEvent): void {
     if (!isDragging) return
     isDragging = false
 
     const delta = dragCurrentX - dragStartX
     if (Math.abs(delta) > DRAG_THRESHOLD) {
       dragDidChange = true
+      dismissHint()
       if (delta < 0) nextPage()
       else           prevPage()
+    } else {
+      dragDidChange = false
+    }
+  }
+
+  /** Fires after pointerup on any <a> blob. Suppresses href only after a drag. */
+  function onLinkClick(e: MouseEvent): void {
+    if (dragDidChange) {
+      e.preventDefault()
+      dragDidChange = false
     }
   }
 
@@ -477,8 +498,10 @@
     )
 
     observer.observe(target)
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('resize',    checkMobile)
+    window.addEventListener('mousemove',   onMouseMove)
+    window.addEventListener('resize',      checkMobile)
+    window.addEventListener('pointermove', onWindowPointerMove)
+    window.addEventListener('pointerup',   onWindowPointerUp)
 
     rafMaskId  = requestAnimationFrame(animateMask)
     rafPopupId = requestAnimationFrame(tickPopup)
@@ -486,8 +509,10 @@
     return (): void => {
       clearAllTimeouts()
       observer.disconnect()
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('resize',    checkMobile)
+      window.removeEventListener('mousemove',   onMouseMove)
+      window.removeEventListener('resize',      checkMobile)
+      window.removeEventListener('pointermove', onWindowPointerMove)
+      window.removeEventListener('pointerup',   onWindowPointerUp)
       cancelAnimationFrame(rafMouseId)
       cancelAnimationFrame(rafPopupId)
       cancelAnimationFrame(rafMaskId)
@@ -509,11 +534,6 @@
   role="region"
   aria-label="Портфоліо — перегляд проєктів"
   bind:this={container}
-  on:pointerdown={onPointerDown}
-  on:pointermove={onPointerMove}
-  on:pointerup={onPointerUp}
-  on:touchstart={onTouchStart}
-  on:touchend={onTouchEnd}
 >
 
   <!-- Header -->
@@ -525,15 +545,22 @@
   </header>
 
   <!-- Card grid -->
-  <div class="showcase__grid" class:showcase__grid--mobile={isMobile}>
+  <div
+    class="showcase__grid"
+    class:showcase__grid--mobile={isMobile}
+    style="--slide-dir: {pageDir}"
+    on:pointerdown={onGridPointerDown}
+    on:touchstart={onTouchStart}
+    on:touchend={onTouchEnd}
+    role="list"
+    aria-label="Проєкти"
+  >
     {#each pageProjects as project, i (project.id)}
       <a
         href={project.url}
         target="_blank"
         rel="noopener noreferrer"
         class="blob blob--has-link"
-        role="button"
-        tabindex="0"
         aria-label={project.name}
         class:blob--visible={cardVisible[i]}
         bind:this={cardEls[i]}
@@ -546,7 +573,7 @@
           --del: {project.morphDelay}s;
           --glow: 0;
         "
-        on:click={onCardClickGuard}
+        on:click={onLinkClick}
         on:mouseenter={() => onCardMouseEnter(i)}
         on:mouseleave={() => onCardMouseLeave(i)}
         on:focus={() => onCardMouseEnter(i)}
@@ -598,14 +625,14 @@
     {/each}
   </div>
 
-  <!-- Pagination dots -->
+  <!-- Vertical pagination — fixed to right side of section -->
   {#if pageCount > 1}
     <nav class="pagination" aria-label="Сторінки проєктів">
       {#each { length: pageCount } as _, i}
         <button
           class="pagination__dot"
           class:pagination__dot--active={i === currentPage}
-          on:click={() => goToPage(i)}
+          on:click={() => { goToPage(i); dismissHint() }}
           aria-label="Сторінка {i + 1}"
           aria-current={i === currentPage ? 'page' : undefined}
         ></button>
@@ -659,7 +686,6 @@
     position: relative;
     z-index: 10;
     font-family: 'Onest', sans-serif;
-    /* Prevent text selection during drag */
     user-select: none;
   }
 
@@ -754,8 +780,9 @@
   .blob {
     position: relative;
     will-change: transform, opacity, filter;
-    cursor: default;
+    cursor: pointer;
     min-height: 0;
+    z-index: 999;
 
     opacity: 0;
     transform: scale(0.55);
@@ -778,11 +805,19 @@
       filter    0.6s ease;
   }
 
-  /* Cursor changes only for cards with a URL */
-  .blob--has-link {
-    cursor: pointer;
+  /*
+    Page-change slide animation.
+    --slide-dir: -1 = entering from right (next page), +1 = entering from left (prev page).
+    Applied on .blob (hidden state) so the "from" position slides from the correct side.
+  */
+  .showcase__grid .blob {
+    --tx-enter: calc(var(--slide-dir, -1) * -40px);
   }
 
+  .showcase__grid .blob:not(.blob--visible) {
+    transform: scale(0.55) translateX(var(--tx-enter, -40px));
+  }
+ 
   /* Glass body — frosted, semi-transparent */
   .blob__body {
     position: absolute;
@@ -888,39 +923,48 @@
 
 
 
-  /* ── Pagination ── */
+  /* ── Pagination — vertical strip, fixed to right edge of section ── */
   .pagination {
+    position: absolute;
+    right: 1.2rem;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    padding: 0.4rem 0;
+    gap: 0.55rem;
+    z-index: 20;
+    padding: 0.6rem 0.35rem;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(8px);
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.1);
   }
 
   .pagination__dot {
     appearance: none;
     border: none;
     padding: 0;
-    background: rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.28);
     border-radius: 50%;
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     cursor: pointer;
     transition:
-      background  0.25s ease,
-      transform   0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-      width       0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      background    0.25s ease,
+      transform     0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+      height        0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .pagination__dot:hover {
-    background: rgba(255,255,255,0.55);
-    transform: scale(1.25);
+    background: rgba(255,255,255,0.6);
+    transform: scale(1.3);
   }
 
-  /* Active dot stretches into a pill */
+  /* Active dot stretches into a vertical pill */
   .pagination__dot--active {
     background: #fff;
-    width: 24px;
+    height: 22px;
     border-radius: 100px;
     transform: none;
   }
@@ -957,7 +1001,7 @@
 
   .popup__name {
     font-family: 'Unbounded', sans-serif;
-    font-size: 0.85rem;
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     margin: 0 0 0.45rem;
@@ -966,8 +1010,8 @@
   }
 
   .popup__summary {
-    font-family: 'Onest', sans-serif;
-    font-size: 0.78rem;
+    font-family: 'ICTV', sans-serif;
+    font-size: 1rem;
     line-height: 1.6;
     color: rgba(255,255,255,0.72);
     margin: 0 0 0.6rem;
@@ -997,6 +1041,18 @@
     .showcase {
       padding: 3.5rem 1rem 1rem;
       gap: 0.75rem;
+    }
+    .pagination {
+      right: 0.5rem;
+      gap: 0.4rem;
+      padding: 0.45rem 0.28rem;
+    }
+    .pagination__dot {
+      width: 6px;
+      height: 6px;
+    }
+    .pagination__dot--active {
+      height: 18px;
     }
   }
 </style>

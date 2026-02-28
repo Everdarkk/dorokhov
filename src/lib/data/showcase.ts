@@ -50,7 +50,7 @@ export const projects: ShowcaseProject[] = [
   {
     id: 1,
     name: 'Сайт для онлайн-логопеда Аліни',
-    summary: "Ресурс для логопеда та для ознайомлення батьків з інтеграцією Google Calendar та EmailJS для зворотнього зв'язку",
+    summary: "Ресурс для логопеда та для ознайомлення батьків. Має інтеграцію з Google Calendar для відстеження розкладу занять та EmailJS для зворотнього зв'язку",
     tags: ['React', 'NextJS', 'TypeScript', 'Figma'],
     video:  ad,
     poster: Ad,
