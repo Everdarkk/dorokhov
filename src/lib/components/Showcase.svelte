@@ -382,15 +382,15 @@
   }
 
   /**
-   * Opens the project URL in a new tab on click.
-   * Suppressed when the gesture resolved to a page-change drag so
-   * swiping never accidentally opens a link.
+   * Guard the click from drag
    */
-  function onCardClick(project: ShowcaseProject): void {
-    if (dragDidChange) { dragDidChange = false; return }
-    if (!project.url)  return
-    window.open(project.url, '_blank', 'noopener,noreferrer')
+  function onCardClickGuard(e: MouseEvent): void {
+  if (dragDidChange) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDidChange = false
   }
+}
 
   // ─── Drag-to-paginate (desktop) ───────────────────────────────────────────────
 
@@ -527,8 +527,14 @@
   <!-- Card grid -->
   <div class="showcase__grid" class:showcase__grid--mobile={isMobile}>
     {#each pageProjects as project, i (project.id)}
-      <div
-        class="blob"
+      <a
+        href={project.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="blob blob--has-link"
+        role="button"
+        tabindex="0"
+        aria-label={project.name}
         class:blob--visible={cardVisible[i]}
         bind:this={cardEls[i]}
         style="
@@ -540,16 +546,11 @@
           --del: {project.morphDelay}s;
           --glow: 0;
         "
-        role="button"
-        tabindex="0"
-        aria-label={project.name}
-        class:blob--has-link={!!project.url}
+        on:click={onCardClickGuard}
         on:mouseenter={() => onCardMouseEnter(i)}
         on:mouseleave={() => onCardMouseLeave(i)}
         on:focus={() => onCardMouseEnter(i)}
         on:blur={() => onCardMouseLeave(i)}
-        on:click={() => onCardClick(project)}
-        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onCardClick(project) }}
       >
         <div class="blob__body"></div>
         <div class="blob__shine"></div>
@@ -593,7 +594,7 @@
 
 
         </div>
-      </div>
+      </a>
     {/each}
   </div>
 
@@ -629,15 +630,6 @@
           <span class="popup__tag">{tag}</span>
         {/each}
       </div>
-      {#if activeProject.url}
-        <a
-          class="popup__link"
-          href={activeProject.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          on:click|stopPropagation
-        >↗ переглянути</a>
-      {/if}
     {/if}
   </div>
 
@@ -998,21 +990,6 @@
     background: color-mix(in srgb, var(--pop-accent, #fff) 18%, transparent 82%);
     border: 1px solid color-mix(in srgb, var(--pop-accent, #fff) 35%, transparent 65%);
     color: rgba(255,255,255,0.85);
-  }
-
-  .popup__link {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: color-mix(in srgb, var(--pop-accent, #fff) 80%, white 20%);
-    text-decoration: none;
-    letter-spacing: 0.04em;
-    pointer-events: all; /* re-enable for the link specifically */
-    transition: opacity 0.15s ease;
-  }
-
-  .popup__link:hover {
-    opacity: 0.75;
   }
 
   /* ── Responsive ── */
