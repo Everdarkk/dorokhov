@@ -6,6 +6,7 @@
     import Circles from "$lib/components/Circles.svelte"
     import About from "$lib/components/About.svelte"
     import Stack from "$lib/components/Stack.svelte"
+    import Showcase from "$lib/components/Showcase.svelte"
 </script>
 
 <!-- STRUCTURE -->
@@ -81,6 +82,28 @@
         showLabel={false}
     />
 </Section>
+
+<Section id="Роботи" effect="blink">
+    <Background 
+        colorBg1={'rgb(0,0,0)'}
+        colorBg2={'rgb(14,14,14)'}
+        color1={'46,17,17'}
+        color2={'145,31,31'}
+        color3={'146,0,42'}
+        color4={'119,21,21'}
+        color5={'153,0,0'}
+        colorInteractive={'226,16,58'}
+    />
+    <Showcase /> 
+    <Indicator
+        appearDelay={3000}
+        color='azure'
+        width={32}
+        size={32}
+        showLabel={false}
+    />
+</Section>
+
 
 <!-- STYLE -->
 <style>

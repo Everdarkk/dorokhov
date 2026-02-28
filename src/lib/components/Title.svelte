@@ -147,7 +147,6 @@
 
   /**
    * Instantly resets everything to hidden without firing transitions.
-   * Same .no-transition pattern as About / Stack.
    */
   function hideImmediately(): void {
     for (const id of pendingTimeouts) clearTimeout(id)
