@@ -306,14 +306,15 @@
   bind:this={container}
   style="--rot-x: 0deg; --rot-y: 0deg;"
 >
-
-  <!--
-    Glass blob sits at z-index 0, behind the title (z-index 1).
-    Sized with clamp so it always wraps snugly around the title text
-    regardless of viewport width.
-    Animates border-radius slowly for organic breathing feel.
-  -->
-  <div class="glass-blob" class:glass-blob--visible={blobVisible} aria-hidden="true"></div>
+  <div
+    class="glass-blob"
+    class:glass-blob--visible={blobVisible}
+    aria-hidden="true"
+  >
+    <div class="glass-blob__body"></div>
+    <div class="glass-blob__shine"></div>
+    <div class="glass-blob__ring"></div>
+  </div>
 
   <h1 class="title" aria-label={title}>
     {#each letters as letter, i (i)}
@@ -387,37 +388,27 @@
     will-change: transform;
   }
 
-  /* ── Glass blob ─────────────────────────────────────────────────────────────
-     Organic rounded rectangle centered behind the h1.
-     Uses backdrop-filter for the frosted-glass look.
-     z-index 0 keeps it below the title text (z-index 1).
+  /* ── Glass blob — same visual architecture as Showcase ─────────────────────
+     Wrapper handles entrance animation (scale + blur + opacity).
+     Children handle the visual layers identically to Showcase blob cards.
+     Size preserved from previous version via clamp().
   ─────────────────────────────────────────────────────────────────────────── */
   .glass-blob {
     position: absolute;
     width:  clamp(320px, 70vw, 920px);
     height: clamp(320px, 30vw, 650px);
 
-    /* Organic rounded rect — not a circle */
-    border-radius: 44% 56% 52% 48% / 55% 45% 55% 45%;
-
-    /* Frosted glass */
-    background: rgba(255, 255, 255, 0.045);
-    backdrop-filter: blur(24px) saturate(1.25);
-    -webkit-backdrop-filter: blur(24px) saturate(1.25);
-
-    /* Luminous hairline border */
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.13),
-      0 8px 48px rgba(0, 0, 0, 0.22),
-      0 2px 10px rgba(0, 0, 0, 0.15);
+    /* CSS vars forwarded to children — same pattern as Showcase */
+    --rx:  58% 42% 52% 48%;
+    --ry:  44% 56% 42% 58%;
+    --dur: 11s;
+    --del: 0s;
+    --glow: 0;
 
     z-index: 0;
+    pointer-events: none;
 
-    /* Slow organic shape breathe */
-    animation: blob-breathe 14s ease-in-out infinite alternate;
-
-    /* Hidden state — same "deflated bubble" pattern as About / Stack cards */
+    /* Hidden state — deflated bubble, identical to Showcase */
     opacity: 0;
     transform: scale(0.5);
     filter: blur(16px);
@@ -434,12 +425,53 @@
     filter: blur(0);
   }
 
-  @keyframes blob-breathe {
-    0%   { border-radius: 44% 56% 52% 48% / 55% 45% 55% 45%; }
-    25%  { border-radius: 55% 45% 44% 56% / 48% 52% 44% 56%; }
-    50%  { border-radius: 48% 52% 58% 42% / 52% 48% 60% 40%; }
-    75%  { border-radius: 38% 62% 50% 50% / 58% 42% 52% 48%; }
-    100% { border-radius: 60% 40% 48% 52% / 44% 56% 48% 52%; }
+  /* ── Frosted glass fill — morph animation identical to Showcase ── */
+  .glass-blob__body {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--rx) / var(--ry);
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px) saturate(1.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    animation: title-blob-morph var(--dur) ease-in-out var(--del) infinite alternate;
+    transition: border-radius 0.9s ease;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ── Specular highlight — top-left shine like Showcase ── */
+  .glass-blob__shine {
+    position: absolute;
+    top: 10%;
+    left: 14%;
+    width: 36%;
+    height: 25%;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.45) 0%, transparent 70%);
+    border-radius: 50%;
+    filter: blur(10px);
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  /* ── Luminous hairline border — inset box-shadow tracks morph shape ── */
+  .glass-blob__ring {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.14),
+      inset 0 1px 0 rgba(255,255,255,0.22);
+    z-index: 2;
+    pointer-events: none;
+    animation: title-blob-morph var(--dur) ease-in-out calc(var(--del) - 0.4s) infinite alternate;
+  }
+
+  @keyframes title-blob-morph {
+    0%   { border-radius: var(--rx) / var(--ry); }
+    33%  { border-radius: 50% 30% 65% 35% / 35% 65% 30% 50%; }
+    66%  { border-radius: 30% 70% 40% 60% / 60% 40% 70% 30%; }
+    100% { border-radius: var(--ry) / var(--rx); }
   }
 
   /* ── Title ── */

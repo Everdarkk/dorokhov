@@ -85,14 +85,14 @@
 
 <Section id="Роботи" effect="blink">
     <Background 
-        colorBg1={'rgb(106,93,110)'}
-        colorBg2={'rgb(138,78,89)'}
-        color1={'159,41,41'}
-        color2={'117,18,40'}
-        color3={'30,18,24'}
-        color4={'133,90,92'}
-        color5={'102,16,31'}
-        colorInteractive={'138,142,145'}
+        colorBg1={'rgb(164,191,161)'}
+        colorBg2={'rgb(53,79,82)'}
+        color1={'202,210,197'}
+        color2={'74,109,86'}
+        color3={'47,62,70'}
+        color4={'214,214,195'}
+        color5={'171,182,160'}
+        colorInteractive={'117,125,131'}
     />
     <Showcase /> 
     <Indicator
