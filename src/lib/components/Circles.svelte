@@ -1,96 +1,62 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-
-  // ─── Types ────────────────────────────────────────────────────────────────
+  import { onMount } from 'svelte'
 
   interface NavDot {
-    id: string;
-    label: string;
-    el: HTMLElement;
+    id:    string
+    label: string
+    el:    HTMLElement
   }
 
-  // ─── Props ────────────────────────────────────────────────────────────────
+  export let size        = 10
+  export let activeSize  = 16
+  export let gap         = 20
+  export let color       = 'rgba(255,255,255,0.35)'
+  export let activeColor = 'azure'
+  export let appearDelay = 0
+  export let showLabel   = true
+  export let threshold   = 0.5
 
-  /** Dot diameter in px */
-  export let size: number = 10;
-  /** Active dot diameter in px */
-  export let activeSize: number = 16;
-  /** Gap between dots in px */
-  export let gap: number = 20;
-  /** Dot colour (inactive) */
-  export let color: string = 'rgba(255,255,255,0.35)';
-  /** Dot colour (active) */
-  export let activeColor: string = 'azure';
-  /** Delay before the nav fades in (ms) */
-  export let appearDelay: number = 0;
-  /** Show section id as a tooltip label on hover */
-  export let showLabel: boolean = true;
-  /** Fraction of section that must be visible to be "active" (0–1) */
-  export let threshold: number = 0.5;
+  let dots:     NavDot[] = []
+  let activeId  = ''
+  let visible   = false
 
-  // ─── State ────────────────────────────────────────────────────────────────
-
-  let dots: NavDot[] = [];
-  let activeId: string = '';
-  let visible: boolean = false;
-  let nav: HTMLElement;
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  function scrollToSection(el: HTMLElement): void {
-    el.scrollIntoView({ behavior: 'smooth' });
+  function scrollTo(el: HTMLElement): void {
+    el.scrollIntoView({ behavior: 'smooth' })
   }
 
-  function handleKeydown(e: KeyboardEvent, el: HTMLElement): void {
+  function onKeydown(e: KeyboardEvent, el: HTMLElement): void {
     if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      scrollToSection(el);
+      e.preventDefault()
+      scrollTo(el)
     }
   }
 
-  // ─── Lifecycle ────────────────────────────────────────────────────────────
-
   onMount(() => {
-    // Collect all snap-section elements in document order.
-    const sections = Array.from(
-      document.querySelectorAll<HTMLElement>('.snap-section')
-    );
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('.snap-section'))
 
-    dots = sections.map((el): NavDot => ({
-      id: el.id || '',
-      label: el.id || '',
-      el,
-    }));
+    dots = sections.map((el) => ({ id: el.id || '', label: el.id || '', el }))
+    if (dots.length) activeId = dots[0].id
 
-    if (dots.length > 0) activeId = dots[0].id;
-
-    // Track which section is currently in view.
     const observer = new IntersectionObserver(
-      (entries: IntersectionObserverEntry[]) => {
+      (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            activeId = (entry.target as HTMLElement).id ?? '';
-          }
+          if (entry.isIntersecting) activeId = (entry.target as HTMLElement).id ?? ''
         }
       },
-      { threshold }
-    );
+      { threshold },
+    )
 
-    sections.forEach(el => observer.observe(el));
-
-    // Fade the nav in after the optional delay.
-    const tid = setTimeout(() => { visible = true; }, appearDelay);
+    sections.forEach((el) => observer.observe(el))
+    const tid = setTimeout(() => { visible = true }, appearDelay)
 
     return () => {
-      observer.disconnect();
-      clearTimeout(tid);
-    };
-  });
+      observer.disconnect()
+      clearTimeout(tid)
+    }
+  })
 </script>
 
-<!-- STRUCTURE -->
 <nav
-  bind:this={nav}
   class="section-nav"
   class:visible
   style="--gap: {gap}px;"
@@ -101,17 +67,12 @@
     <button
       class="dot"
       class:active={isActive}
-      style="
-        --size:        {size}px;
-        --active-size: {activeSize}px;
-        --color:       {color};
-        --active-color:{activeColor};
-      "
+      style="--size: {size}px; --active-size: {activeSize}px; --color: {color}; --active-color: {activeColor};"
       aria-label="Go to section {dot.label || dot.id}"
       aria-current={isActive ? 'true' : undefined}
       tabindex="0"
-      on:click={() => scrollToSection(dot.el)}
-      on:keydown={(e) => handleKeydown(e, dot.el)}
+      on:click={() => scrollTo(dot.el)}
+      on:keydown={(e) => onKeydown(e, dot.el)}
     >
       {#if showLabel && dot.label}
         <span class="label">{dot.label}</span>
@@ -120,7 +81,6 @@
   {/each}
 </nav>
 
-<!-- STYLE -->
 <style>
   .section-nav {
     position: fixed;
@@ -128,41 +88,31 @@
     top: 50%;
     transform: translateY(-50%);
     z-index: 1000;
-
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--gap, 20px);
-
     opacity: 0;
     transition: opacity 0.6s ease;
   }
 
-  .section-nav.visible {
-    opacity: 1;
-  }
+  .section-nav.visible { opacity: 1; }
 
-  /* ── Dot button ── */
   .dot {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-
-    width: var(--active-size);   /* reserve the max size so layout never shifts */
+    width: var(--active-size);
     height: var(--active-size);
-
     padding: 0;
     border: none;
     background: transparent;
     cursor: pointer;
     outline: none;
-
-    /* hit-area larger than the visual dot */
-    /* (padding already provides it via the wrapper size) */
   }
 
-  /* The actual circle — a pseudo-element so size/colour animate independently */
+  /* Visual circle via pseudo-element so size/colour animate independently */
   .dot::before {
     content: '';
     display: block;
@@ -171,8 +121,8 @@
     width: var(--size);
     height: var(--size);
     transition:
-      width  0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-      height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+      width      0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+      height     0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
       background 0.35s ease,
       box-shadow 0.35s ease;
   }
@@ -191,32 +141,23 @@
     box-shadow: 0 0 10px 2px color-mix(in srgb, var(--active-color) 50%, transparent);
   }
 
-  /* ── Tooltip label ── */
+  /* Hover tooltip */
   .label {
     position: absolute;
     left: calc(100% + 10px);
     white-space: nowrap;
     font-size: 0.72rem;
-    font-family: "ICTV", sans-serif;
+    font-family: 'ICTV', sans-serif;
     color: var(--active-color);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     opacity: 0;
     transform: translateX(-4px);
     pointer-events: none;
-    transition:
-      opacity 0.2s ease,
-      transform 0.2s ease;
+    transition: opacity 0.2s ease, transform 0.2s ease;
   }
 
   .dot:hover .label,
-  .dot:focus-visible .label {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  .dot.active .label {
-    opacity: 0.55;
-    transform: translateX(0);
-  }
+  .dot:focus-visible .label { opacity: 1; transform: translateX(0); }
+  .dot.active .label         { opacity: 0.55; transform: translateX(0); }
 </style>

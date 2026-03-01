@@ -1,229 +1,138 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { lerp, findSnapSection } from '$lib/utils/animation'
 
   // ─── Types ───────────────────────────────────────────────────────────────────
 
-  interface LetterState {
-    /** The character to display */
-    char:    string
-    /** True for space characters — rendered as non-animated gaps */
-    isSpace: boolean
-    /** Drives the CSS .letter--visible class — triggers entrance transition */
-    visible: boolean
-    /**
-     * Direction of the entrance drop.
-     * true  = letter enters from ABOVE  (negative translateY → 0)
-     * false = letter enters from BELOW  (positive translateY → 0)
-     * Alternates per non-space letter so adjacent letters "zip" toward each other.
-     */
-    fromAbove: boolean
-    /**
-     * Per-letter phase offset for cursor-stretch noise (radians).
-     * Baked at build time from the golden ratio for good spread across letters.
-     */
-    noisePhase: number
-  }
-
-  /** Lerped cursor-stretch offset for one letter, in viewport px */
-  interface LetterOffset {
-    ox: number
-    oy: number
+  interface Letter {
+    char:       string
+    isSpace:    boolean
+    visible:    boolean
+    fromAbove:  boolean  // true = enters from above, false = from below (alternates)
+    noisePhase: number   // golden-ratio offset for per-letter noise variation
   }
 
   // ─── Props ───────────────────────────────────────────────────────────────────
 
-  /** Main heading text */
-  export let title:                 string = 'Welcome'
-  /** Left subtitle */
-  export let subtitle:              string = 'Something worth reading'
-  /** Right subtitle */
-  export let subtitle2:             string = 'And seeing by yourself'
-  /** Delay before first letter appears (ms) */
-  export let startDelay:            number = 400
-  /** Time between successive letters (ms) */
-  export let letterDelay:           number = 80
-  /** Entrance travel distance (px) */
-  export let dropDistance:          number = 48
-  /** Max container tilt (deg) */
-  export let maxTilt:               number = 6
-  /** Lerp factor for container tilt */
-  export let lerpFactor:            number = 0.055
-  /** IntersectionObserver threshold */
-  export let intersectionThreshold: number = 0.5
+  export let title                  = 'Welcome'
+  export let subtitle               = 'Something worth reading'
+  export let subtitle2              = 'And seeing by yourself'
+  export let startDelay             = 400
+  export let letterDelay            = 80
+  export let dropDistance           = 48
+  export let maxTilt                = 6
+  export let lerpFactor             = 0.055
+  export let intersectionThreshold  = 0.5
 
   // ─── State ───────────────────────────────────────────────────────────────────
 
-  let letters:          LetterState[]  = []
-  let letterOffsets:    LetterOffset[] = []
-  let subtitleVisible:  boolean        = false
-  let subtitle2Visible: boolean        = false
-  /** Drives the glass blob entrance — appears first, before letters. */
-  let blobVisible:      boolean        = false
+  let letters:         Letter[]   = []
+  let letterOffsets:   { ox: number; oy: number }[] = []
+  let subtitleVisible  = false
+  let subtitle2Visible = false
+  let blobVisible      = false
 
-  // Container 3-D tilt (lerped values and targets)
-  let currentRotX = 0
-  let currentRotY = 0
-  let targetRotX  = 0
-  let targetRotY  = 0
+  // Container 3-D tilt
+  let currentRotX = 0, currentRotY = 0
+  let targetRotX  = 0, targetRotY  = 0
 
-  // Raw cursor position in viewport px
-  let cursorX = 0
-  let cursorY = 0
+  // Cursor position
+  let cursorX = 0, cursorY = 0
 
-  // ─── DOM refs ────────────────────────────────────────────────────────────────
-
+  // DOM refs
   let container: HTMLDivElement
   let letterEls: (HTMLSpanElement | null)[] = []
 
-  // ─── RAF + timeout handles ───────────────────────────────────────────────────
-
-  let rafId:           number
-  let pendingTimeouts: ReturnType<typeof setTimeout>[] = []
+  // RAF + timeout handles
+  let rafId:   number
+  let pending: ReturnType<typeof setTimeout>[] = []
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  function lerp(a: number, b: number, t: number): number {
-    return a + (b - a) * t
-  }
-
-  function findSnapSection(el: HTMLElement): HTMLElement {
-    let node: HTMLElement | null = el.parentElement
-    while (node) {
-      if (node.classList.contains('snap-section')) return node
-      node = node.parentElement
-    }
-    return el
-  }
-
-  /**
-   * Builds the LetterState array from a string.
-   * - fromAbove alternates for every non-space character
-   * - noisePhase uses golden-ratio multiples for uniform spread
-   */
-  function buildLetters(text: string): LetterState[] {
-    let letterCount = 0
-    return text.split('').map((char): LetterState => {
+  function buildLetters(text: string): Letter[] {
+    let count = 0
+    return text.split('').map((char): Letter => {
       const isSpace = char === ' '
-      const fromAbove = isSpace ? true : letterCount++ % 2 === 0
-      return {
-        char,
-        isSpace,
-        visible:    false,
-        fromAbove,
-        noisePhase: letterCount * 1.6180339887, // golden ratio → even spread
-      }
+      const fromAbove = isSpace ? true : count++ % 2 === 0
+      return { char, isSpace, visible: false, fromAbove, noisePhase: count * 1.6180339887 }
     })
   }
 
   // ─── Entrance / exit ─────────────────────────────────────────────────────────
 
-  /**
-   * Plays the staggered entrance:
-   *   letters appear one by one (alternating above/below)
-   *   then subtitles slide in from opposite sides.
-   */
   function playAnimation(): void {
-    // Blob appears first — gives it time to "inflate" before letters arrive.
-    const BLOB_DELAY = 80
-    pendingTimeouts.push(
-      setTimeout(() => { blobVisible = true }, BLOB_DELAY),
-    )
+    // Blob inflates first, then letters cascade in, then subtitles slide in
+    pending.push(setTimeout(() => { blobVisible = true }, 80))
 
     letters.forEach((_, i) => {
-      const id = setTimeout(() => {
+      pending.push(setTimeout(() => {
         letters[i].visible = true
         letters = [...letters]
-      }, startDelay + i * letterDelay)
-      pendingTimeouts.push(id)
+      }, startDelay + i * letterDelay))
     })
 
-    const totalLetterMs = startDelay + letters.length * letterDelay
-
-    pendingTimeouts.push(
-      setTimeout(() => { subtitleVisible  = true }, totalLetterMs + 200),
-      setTimeout(() => { subtitle2Visible = true }, totalLetterMs + 340),
+    const afterLetters = startDelay + letters.length * letterDelay
+    pending.push(
+      setTimeout(() => { subtitleVisible  = true }, afterLetters + 200),
+      setTimeout(() => { subtitle2Visible = true }, afterLetters + 340),
     )
   }
 
-  /**
-   * Instantly resets everything to hidden without firing transitions.
-   */
   function hideImmediately(): void {
-    for (const id of pendingTimeouts) clearTimeout(id)
-    pendingTimeouts = []
+    for (const id of pending) clearTimeout(id)
+    pending = []
 
-    if (container) container.classList.add('no-transition')
-
+    container?.classList.add('no-transition')
     letters          = buildLetters(title)
     letterOffsets    = letters.map(() => ({ ox: 0, oy: 0 }))
     subtitleVisible  = false
     subtitle2Visible = false
     blobVisible      = false
 
-    requestAnimationFrame(() => {
-      if (container) container.classList.remove('no-transition')
-    })
+    requestAnimationFrame(() => container?.classList.remove('no-transition'))
   }
 
   // ─── Mouse handlers ──────────────────────────────────────────────────────────
 
-  function handleMouseMove(e: MouseEvent): void {
-    cursorX = e.clientX
-    cursorY = e.clientY
-
-    const nx = (e.clientX / window.innerWidth)  * 2 - 1
-    const ny = (e.clientY / window.innerHeight) * 2 - 1
-    targetRotX = -ny * maxTilt
-    targetRotY =  nx * maxTilt
+  function onMouseMove(e: MouseEvent): void {
+    cursorX  = e.clientX
+    cursorY  = e.clientY
+    targetRotX = -((e.clientY / window.innerHeight) * 2 - 1) * maxTilt
+    targetRotY =  ((e.clientX / window.innerWidth)  * 2 - 1) * maxTilt
   }
 
-  function handleMouseLeave(): void {
+  function onMouseLeave(): void {
     targetRotX = 0
     targetRotY = 0
   }
 
-  // ─── Main RAF loop ───────────────────────────────────────────────────────────
+  // ─── RAF loop ────────────────────────────────────────────────────────────────
 
   /**
-   * Runs every animation frame. Three layers of motion:
-   *
-   *  1. CONTAINER TILT — the whole block rotates toward the cursor (3-D).
-   *
-   *  2. PER-LETTER ATTRACTION — each letter is pulled toward the cursor
-   *     with force = MAX_PULL / (1 + (dist/PULL_RADIUS)²).
-   *     This is an inverse-square-like falloff: strong close, fades far.
-   *
-   *  3. PER-LETTER NOISE — sinusoidal oscillation with unique phase per letter.
-   *     Amplitude scales with cursor proximity so letters only vibrate when
-   *     the cursor is nearby. Separate frequencies on X/Y for chaotic feel.
-   *
-   *  Offsets are lerped so all motion is smooth and "floaty".
-   *  CSS vars --ox/--oy on each <span> are written directly — no Svelte reactivity
-   *  needed here, direct DOM write is intentional for 60 fps performance.
+   * Three effects per frame:
+   *  1. Container 3-D tilt toward cursor
+   *  2. Per-letter attraction (inverse-square pull toward cursor)
+   *  3. Per-letter sinusoidal noise (amplitude scales with proximity)
    */
   function tick(timestamp: number): void {
-    // 1 — Container tilt
+    // 1 — Tilt
     currentRotX = lerp(currentRotX, targetRotX, lerpFactor)
     currentRotY = lerp(currentRotY, targetRotY, lerpFactor)
-    if (container) {
-      container.style.setProperty('--rot-x', `${currentRotX.toFixed(3)}deg`)
-      container.style.setProperty('--rot-y', `${currentRotY.toFixed(3)}deg`)
-    }
+    container?.style.setProperty('--rot-x', `${currentRotX.toFixed(3)}deg`)
+    container?.style.setProperty('--rot-y', `${currentRotY.toFixed(3)}deg`)
 
-    // Tuning constants
-    const PULL_RADIUS     = 240  // px — half-power distance for attraction
-    const MAX_PULL        = 26   // px — max offset at zero distance
-    const NOISE_RADIUS    = 320  // px — noise fades beyond this distance
-    const MAX_NOISE_AMP   = 5    // px — peak sinusoidal noise amplitude
-    const NOISE_FREQ_BASE = 0.0028 // oscillations per ms (≈ ~2.8 Hz base)
-    const LERP_LETTER     = 0.085  // smoothing factor — lower = floatier
+    // Constants for letter effects
+    const PULL_RADIUS    = 240
+    const MAX_PULL       = 26
+    const NOISE_RADIUS   = 320
+    const MAX_NOISE      = 5
+    const NOISE_FREQ     = 0.0028
+    const LERP_LETTER    = 0.085
 
     letters.forEach((letter, i) => {
       if (letter.isSpace || !letterEls[i]) return
 
-      const el = letterEls[i]!
-
-      // Skip if element not yet in layout (entrance hasn't started)
+      const el   = letterEls[i]!
       const rect = el.getBoundingClientRect()
       if (rect.width === 0) return
 
@@ -233,26 +142,21 @@
       const dy   = cursorY - ly
       const dist = Math.hypot(dx, dy)
 
-      // 2 — Attraction toward cursor
+      // 2 — Attraction
       const force = MAX_PULL / (1 + (dist / PULL_RADIUS) ** 2)
       const ux    = dist > 0 ? dx / dist : 0
       const uy    = dist > 0 ? dy / dist : 0
-      const attrX = ux * force
-      const attrY = uy * force
 
-      // 3 — Noise: amplitude proportional to proximity, phase unique per letter
-      const noiseAmp  = MAX_NOISE_AMP * Math.max(0, 1 - dist / NOISE_RADIUS)
-      const phaseX    = timestamp * NOISE_FREQ_BASE * (1 + (letter.noisePhase % 0.6)) + letter.noisePhase
-      const phaseY    = timestamp * NOISE_FREQ_BASE * (0.7 + (letter.noisePhase % 0.4)) + letter.noisePhase + 1.3
-      const noiseX    = noiseAmp * Math.sin(phaseX)
-      const noiseY    = noiseAmp * Math.cos(phaseY)
+      // 3 — Noise
+      const noiseAmp = MAX_NOISE * Math.max(0, 1 - dist / NOISE_RADIUS)
+      const phaseX   = timestamp * NOISE_FREQ * (1 + (letter.noisePhase % 0.6)) + letter.noisePhase
+      const phaseY   = timestamp * NOISE_FREQ * (0.7 + (letter.noisePhase % 0.4)) + letter.noisePhase + 1.3
 
-      // Lerp toward target offset
       if (!letterOffsets[i]) letterOffsets[i] = { ox: 0, oy: 0 }
-      letterOffsets[i].ox = lerp(letterOffsets[i].ox, attrX + noiseX, LERP_LETTER)
-      letterOffsets[i].oy = lerp(letterOffsets[i].oy, attrY + noiseY, LERP_LETTER)
+      letterOffsets[i].ox = lerp(letterOffsets[i].ox, ux * force + noiseAmp * Math.sin(phaseX), LERP_LETTER)
+      letterOffsets[i].oy = lerp(letterOffsets[i].oy, uy * force + noiseAmp * Math.cos(phaseY), LERP_LETTER)
 
-      // Write directly to DOM — bypasses Svelte reactivity for perf
+      // Direct DOM write — intentional for 60fps performance (bypasses Svelte reactivity)
       el.style.setProperty('--ox', `${letterOffsets[i].ox.toFixed(2)}px`)
       el.style.setProperty('--oy', `${letterOffsets[i].oy.toFixed(2)}px`)
     })
@@ -265,52 +169,42 @@
   onMount(() => {
     letters       = buildLetters(title)
     letterOffsets = letters.map(() => ({ ox: 0, oy: 0 }))
+    cursorX       = window.innerWidth  / 2
+    cursorY       = window.innerHeight / 2
 
-    // Initialise cursor to viewport centre so letters don't jerk on load
-    cursorX = window.innerWidth  / 2
-    cursorY = window.innerHeight / 2
-
-    const target = findSnapSection(container)
-
+    const target   = findSnapSection(container)
     const observer = new IntersectionObserver(
-      (entries: IntersectionObserverEntry[]) => {
+      (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            playAnimation()
-          } else {
-            hideImmediately()
-          }
+          if (entry.isIntersecting) playAnimation()
+          else                      hideImmediately()
         }
       },
       { threshold: intersectionThreshold },
     )
 
     observer.observe(target)
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseleave', handleMouseLeave)
+    window.addEventListener('mousemove',  onMouseMove)
+    window.addEventListener('mouseleave', onMouseLeave)
     rafId = requestAnimationFrame(tick)
 
     return (): void => {
-      for (const id of pendingTimeouts) clearTimeout(id)
+      for (const id of pending) clearTimeout(id)
       observer.disconnect()
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseleave', handleMouseLeave)
+      window.removeEventListener('mousemove',  onMouseMove)
+      window.removeEventListener('mouseleave', onMouseLeave)
       cancelAnimationFrame(rafId)
     }
   })
 </script>
 
-<!-- STRUCTURE -->
 <div
   class="container"
   bind:this={container}
   style="--rot-x: 0deg; --rot-y: 0deg;"
 >
-  <div
-    class="glass-blob"
-    class:glass-blob--visible={blobVisible}
-    aria-hidden="true"
-  >
+  <!-- Glass blob — appears before letters to provide a background layer -->
+  <div class="glass-blob" class:glass-blob--visible={blobVisible} aria-hidden="true">
     <div class="glass-blob__body"></div>
     <div class="glass-blob__shine"></div>
     <div class="glass-blob__ring"></div>
@@ -322,51 +216,31 @@
         <span class="letter letter--space">&nbsp;</span>
       {:else}
         <!--
-          --drop: entrance direction (negative = from above, positive = from below)
-          --ox, --oy: cursor-stretch offset written by RAF loop each frame
+          --drop: entrance travel direction (negative = from above, positive = from below)
+          --ox/--oy: cursor offset, written each frame by the RAF loop
         -->
         <span
           class="letter"
           class:letter--visible={letter.visible}
-          style="
-            --drop: {letter.fromAbove ? `-${dropDistance}px` : `${dropDistance}px`};
-            --ox: 0px;
-            --oy: 0px;
-          "
+          style="--drop: {letter.fromAbove ? `-${dropDistance}px` : `${dropDistance}px`}; --ox: 0px; --oy: 0px;"
           bind:this={letterEls[i]}
         >{letter.char}</span>
       {/if}
     {/each}
   </h1>
 
-  <!--
-    Subtitles float freely — no blob, no border.
-    Left one slides in from the left, right one from the right.
-    Both use the same .subtitle--visible trigger.
-  -->
-  <p
-    class="subtitle subtitle--left"
-    class:subtitle--visible={subtitleVisible}
-  >{subtitle}</p>
-
-  <p
-    class="subtitle subtitle--right"
-    class:subtitle--visible={subtitle2Visible}
-  >{subtitle2}</p>
-
+  <!-- Left subtitle slides in from the left, right one from the right -->
+  <p class="subtitle subtitle--left"  class:subtitle--visible={subtitleVisible}>{subtitle}</p>
+  <p class="subtitle subtitle--right" class:subtitle--visible={subtitle2Visible}>{subtitle2}</p>
 </div>
 
-<!-- STYLE -->
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Onest:wght@300;400&display=swap');
 
-  /* ── Transition kill — applied for one frame during hideImmediately() ── */
+  /* Kill transitions for one frame during hideImmediately() */
   .container.no-transition *,
-  .container.no-transition {
-    transition: none !important;
-  }
+  .container.no-transition { transition: none !important; }
 
-  /* ── Root container ── */
   .container {
     position: relative;
     display: flex;
@@ -377,38 +251,20 @@
     z-index: 100;
     padding: 2rem;
     width: 100%;
-
-    /*
-      3-D tilt: CSS vars --rot-x / --rot-y are written by the RAF loop
-      every frame via container.style.setProperty — no Svelte reactivity needed.
-    */
     transform: perspective(900px) rotateX(var(--rot-x)) rotateY(var(--rot-y));
     transform-style: preserve-3d;
     transform-origin: center center;
     will-change: transform;
   }
 
-  /* ── Glass blob — same visual architecture as Showcase ─────────────────────
-     Wrapper handles entrance animation (scale + blur + opacity).
-     Children handle the visual layers identically to Showcase blob cards.
-     Size preserved from previous version via clamp().
-  ─────────────────────────────────────────────────────────────────────────── */
+  /* ── Glass blob ── */
   .glass-blob {
     position: absolute;
     width:  clamp(320px, 70vw, 920px);
     height: clamp(320px, 30vw, 650px);
-
-    /* CSS vars forwarded to children — same pattern as Showcase */
-    --rx:  58% 42% 52% 48%;
-    --ry:  44% 56% 42% 58%;
-    --dur: 11s;
-    --del: 0s;
-    --glow: 0;
-
+    --rx: 58% 42% 52% 48%; --ry: 44% 56% 42% 58%; --dur: 11s; --del: 0s;
     z-index: 0;
     pointer-events: none;
-
-    /* Hidden state — deflated bubble, identical to Showcase */
     opacity: 0;
     transform: scale(0.5);
     filter: blur(16px);
@@ -418,56 +274,37 @@
       filter    0.7s ease;
   }
 
-  /* Inflates into place with springy overshoot */
-  .glass-blob--visible {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0);
-  }
+  .glass-blob--visible { opacity: 1; transform: scale(1); filter: blur(0); }
 
-  /* ── Frosted glass fill — morph animation identical to Showcase ── */
   .glass-blob__body {
     position: absolute;
     inset: 0;
     border-radius: var(--rx) / var(--ry);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255,255,255,0.06);
     backdrop-filter: blur(12px) saturate(1.4);
     -webkit-backdrop-filter: blur(12px) saturate(1.4);
-    animation: title-blob-morph var(--dur) ease-in-out var(--del) infinite alternate;
-    transition: border-radius 0.9s ease;
+    animation: blob-morph var(--dur) ease-in-out var(--del) infinite alternate;
     z-index: 0;
-    pointer-events: none;
   }
 
-  /* ── Specular highlight — top-left shine like Showcase ── */
   .glass-blob__shine {
     position: absolute;
-    top: 10%;
-    left: 14%;
-    width: 36%;
-    height: 25%;
+    top: 10%; left: 14%; width: 36%; height: 25%;
     background: radial-gradient(ellipse at center, rgba(255,255,255,0.45) 0%, transparent 70%);
-    border-radius: 50%;
-    filter: blur(10px);
-    z-index: 1;
-    pointer-events: none;
-    opacity: 0.55;
+    border-radius: 50%; filter: blur(10px); z-index: 1; pointer-events: none; opacity: 0.55;
   }
 
-  /* ── Luminous hairline border — inset box-shadow tracks morph shape ── */
   .glass-blob__ring {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.22);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14), inset 0 1px 0 rgba(255,255,255,0.22);
     z-index: 2;
     pointer-events: none;
-    animation: title-blob-morph var(--dur) ease-in-out calc(var(--del) - 0.4s) infinite alternate;
+    animation: blob-morph var(--dur) ease-in-out calc(var(--del) - 0.4s) infinite alternate;
   }
 
-  @keyframes title-blob-morph {
+  @keyframes blob-morph {
     0%   { border-radius: var(--rx) / var(--ry); }
     33%  { border-radius: 50% 30% 65% 35% / 35% 65% 30% 50%; }
     66%  { border-radius: 30% 70% 40% 60% / 60% 40% 70% 30%; }
@@ -483,39 +320,24 @@
     justify-content: center;
     margin: 0;
     padding: 0.08em 0.5em;
-    overflow: visible; /* letters can extend beyond heading box during stretch */
-
+    overflow: visible;
     font-family: 'Bulbasaur', sans-serif;
     font-size: clamp(2.8rem, 9vw, 8.5rem);
     font-weight: 900;
     letter-spacing: 0.09em;
     line-height: 1.05;
     color: #fff;
-    text-shadow: 0 2px 28px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 2px 28px rgba(0,0,0,0.3);
   }
 
-  /* ── Letter ─────────────────────────────────────────────────────────────────
-     Hidden state:
-       opacity: 0
-       translateY(--drop)  = entrance direction (above or below)
-       translate(--ox, --oy) = cursor offset (0 initially, updated by RAF)
-
-     All three must be in a single transform — they compose.
-
-     Once .letter--visible is added:
-       opacity → 1
-       translateY → 0
-       translate(--ox, --oy) stays active and updated every frame
-
-     After entrance transition ends (0.7s), only the cursor offset remains
-     in the transform, driven by the RAF loop.
-  ─────────────────────────────────────────────────────────────────────────── */
+  /*
+    Hidden: translateY(--drop) + cursor offset (--ox/--oy)
+    Visible: translateY(0) + cursor offset (still active, driven by RAF loop)
+  */
   .letter {
     display: inline-block;
     opacity: 0;
-    transform:
-      translateY(var(--drop, -48px))
-      translate(var(--ox, 0px), var(--oy, 0px));
+    transform: translateY(var(--drop, -48px)) translate(var(--ox, 0px), var(--oy, 0px));
     transition:
       opacity   0.65s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
@@ -524,22 +346,12 @@
 
   .letter--visible {
     opacity: 1;
-    transform:
-      translateY(0)
-      translate(var(--ox, 0px), var(--oy, 0px));
+    transform: translateY(0) translate(var(--ox, 0px), var(--oy, 0px));
   }
 
-  .letter--space {
-    opacity: 1;
-    transform: none;
-    transition: none;
-    white-space: pre;
-  }
+  .letter--space { opacity: 1; transform: none; transition: none; white-space: pre; }
 
-  /* ── Subtitles ───────────────────────────────────────────────────────────────
-     Left slides in from the left, right from the right.
-     Both float freely without a blob.
-  ─────────────────────────────────────────────────────────────────────────── */
+  /* ── Subtitles ── */
   .subtitle {
     position: relative;
     text-align: center;
@@ -548,38 +360,22 @@
     font-family: 'ICTV', sans-serif;
     font-size: clamp(1rem, 2vw, 2rem);
     font-weight: 100;
-    color: rgba(255, 255, 255, 0.70);
-    text-shadow: 0 1px 10px rgba(255, 255, 255, 0.12);
+    color: rgba(255,255,255,0.70);
+    text-shadow: 0 1px 10px rgba(255,255,255,0.12);
     white-space: nowrap;
     width: 100%;
-
     opacity: 0;
     transition:
       opacity   0.85s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .subtitle--left {
-    transform: translateX(-50px);
-  }
+  .subtitle--left  { transform: translateX(-50px); }
+  .subtitle--right { transform: translateX(50px); }
+  .subtitle--visible { opacity: 1; transform: translateX(0); }
 
-  .subtitle--right {
-    transform: translateX(50px);
-  }
-
-  .subtitle--visible {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  /* ── Responsive ── */
   @media (max-width: 600px) {
     .subtitle--left,
-    .subtitle--right {
-      text-align: center;
-      padding-left: 1rem;
-      padding-right: 1rem;
-      white-space: normal;
-    }
+    .subtitle--right { text-align: center; padding-inline: 1rem; white-space: normal; }
   }
 </style>

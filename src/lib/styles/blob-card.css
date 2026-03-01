@@ -1,0 +1,140 @@
+/*
+  blob-card.css
+  Shared styles for animated blob cards.
+  Requires CSS vars per card: --accent1, --accent2, --rx, --ry, --dur, --del, --glow
+*/
+
+/* ── Hidden → visible entrance ── */
+.blob {
+  position: relative;
+  will-change: transform, opacity, filter;
+
+  opacity: 0;
+  transform: scale(0.55);
+  filter: blur(14px);
+
+  transition:
+    opacity   0.7s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter    0.6s ease;
+}
+
+/* After entrance, use fast transform for mouse tilt */
+.blob--visible {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+
+  transition:
+    opacity   0.7s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.1s ease,
+    filter    0.6s ease;
+}
+
+/* ── Morph animation ── */
+@keyframes morph {
+  0%   { border-radius: var(--rx) / var(--ry); }
+  33%  { border-radius: 50% 30% 65% 35% / 35% 65% 30% 50%; }
+  66%  { border-radius: 30% 70% 40% 60% / 60% 40% 70% 30%; }
+  100% { border-radius: var(--ry) / var(--rx); }
+}
+
+/* ── Body ── */
+.blob__body {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--rx) / var(--ry);
+  animation: morph var(--dur) ease-in-out var(--del) infinite alternate;
+  transition: border-radius 0.9s ease, box-shadow 0.3s ease;
+  z-index: 0;
+}
+
+/* ── Ring ── */
+.blob__ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  z-index: 0;
+  opacity: calc(0.35 + var(--glow) * 0.65);
+  animation: morph var(--dur) ease-in-out calc(var(--del) - 0.4s) infinite alternate;
+  filter: blur(1.5px);
+  transition: opacity 0.15s ease;
+}
+
+/* ── Specular shine ── */
+.blob__shine {
+  position: absolute;
+  top: 10%;
+  left: 14%;
+  width: 36%;
+  height: 25%;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.55) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(7px);
+  z-index: 1;
+  pointer-events: none;
+  opacity: calc(0.5 + var(--glow) * 0.5);
+  transition: opacity 0.15s ease;
+}
+
+/* ── Content layer ── */
+.blob__inner {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+}
+
+/* ── Hover: pause morph + round shape ── */
+.blob:hover .blob__body,
+.blob:focus-visible .blob__body {
+  animation-play-state: paused;
+  border-radius: 50%;
+}
+
+/* ── Popup card ── */
+.popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  width: max-content;
+  max-width: 300px;
+  min-width: 180px;
+  pointer-events: none;
+
+  background: rgba(16, 14, 24, 0.80);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-radius: 18px;
+  padding: 1rem 1.2rem;
+
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pop-accent, #fff) 35%, transparent 65%),
+    inset 0 0 0 1px color-mix(in srgb, var(--pop-accent, #fff) 8%, transparent 92%),
+    0 12px 40px rgba(0,0,0,0.55),
+    0 3px 10px rgba(0,0,0,0.35);
+
+  transform-style: preserve-3d;
+  transform-origin: center bottom;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.popup__name {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--pop-accent, #fff) 90%, white 10%);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--pop-accent, #fff) 40%, transparent 60%);
+  margin: 0 0 0.45rem;
+}
+
+.popup__summary {
+  font-family: 'ICTV', sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.72);
+  margin: 0;
+  font-weight: 300;
+}

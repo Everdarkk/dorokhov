@@ -1,130 +1,75 @@
 <script lang="ts">
-    import Background from "$lib/components/Background.svelte"
-    import Title from "$lib/components/Title.svelte"
-    import Indicator from "$lib/components/Indicator.svelte"
-    import Section from "$lib/components/Section.svelte"
-    import Circles from "$lib/components/Circles.svelte"
-    import About from "$lib/components/About.svelte"
-    import Stack from "$lib/components/Stack.svelte"
-    import Showcase from "$lib/components/Showcase.svelte"
+  import Background from '$lib/components/Background.svelte'
+  import Title      from '$lib/components/Title.svelte'
+  import Indicator  from '$lib/components/Indicator.svelte'
+  import Section    from '$lib/components/Section.svelte'
+  import Circles    from '$lib/components/Circles.svelte'
+  import About      from '$lib/components/About.svelte'
+  import Stack      from '$lib/components/Stack.svelte'
+  import Showcase   from '$lib/components/Showcase.svelte'
+
+  // Shared Indicator props — same on every section
+  const indicator = { appearDelay: 3000, color: 'azure', width: 32, size: 32, showLabel: false }
 </script>
 
-<!-- STRUCTURE -->
-<Circles 
-    appearDelay={3000} 
-    showLabel={true}
-/>
-
-<!--
-  Each <Section> takes 100dvh in the normal flow (for snapping + view-timeline).
-  Its inner .content is position: fixed, so sections cross-fade without
-  a visible page scroll
--->
+<Circles appearDelay={3000} showLabel={true} />
 
 <Section id="Головна" effect="blink">
-    <Background />
-    <Title
-        title='Вітаю!'
-        subtitle='Мене звати Олександр'
-        subtitle2='і я займаюсь веб-розробкою'
-        maxTilt={3}
-        lerpFactor={0.06}
-        letterDelay={100}
-        dropDistance={100}
-    />
-    <Indicator
-        appearDelay={3000}
-        color='azure'
-        width={32}
-        size={32}
-        showLabel={false}
-    />
+  <Background />
+  <Title
+    title='Вітаю!'
+    subtitle='Мене звати Олександр'
+    subtitle2='і я займаюсь веб-розробкою'
+    maxTilt={3}
+    lerpFactor={0.06}
+    letterDelay={100}
+    dropDistance={100}
+  />
+  <Indicator {...indicator} />
 </Section>
 
 <Section id="Про мене" effect="blink">
-    <Background 
-        colorBg1={'rgb(0,0,0)'}
-        colorBg2={'rgb(14,14,14)'}
-        color1={'46,17,17'}
-        color2={'145,31,31'}
-        color3={'146,0,42'}
-        color4={'119,21,21'}
-        color5={'153,0,0'}
-        colorInteractive={'226,16,58'}
-    />
-    <About /> 
-    <Indicator
-        appearDelay={3000}
-        color='azure'
-        width={32}
-        size={32}
-        showLabel={false}
-    />
+  <Background
+    colorBg1='rgb(0,0,0)'    colorBg2='rgb(14,14,14)'
+    color1='46,17,17'        color2='145,31,31'
+    color3='146,0,42'        color4='119,21,21'
+    color5='153,0,0'         colorInteractive='226,16,58'
+  />
+  <About />
+  <Indicator {...indicator} />
 </Section>
 
 <Section id="Стек" effect="blink">
-    <Background 
-        colorBg1={'rgb(64,64,81)'}
-        colorBg2={'rgb(40,32,45)'}
-        color1={'208,208,208'}
-        color2={'248,248,248'}
-        color3={'154,147,171'}
-        color4={'32,32,32'}
-        color5={'255,241,153'}
-        colorInteractive={'195,164,195'}
-    />
-    <Stack />
-    <Indicator
-        appearDelay={3000}
-        color='azure'
-        width={32}
-        size={32}
-        showLabel={false}
-    />
+  <Background
+    colorBg1='rgb(64,64,81)'   colorBg2='rgb(40,32,45)'
+    color1='208,208,208'       color2='248,248,248'
+    color3='154,147,171'       color4='32,32,32'
+    color5='255,241,153'       colorInteractive='195,164,195'
+  />
+  <Stack />
+  <Indicator {...indicator} />
 </Section>
 
 <Section id="Роботи" effect="blink">
-    <Background 
-        colorBg1={'rgb(164,191,161)'}
-        colorBg2={'rgb(53,79,82)'}
-        color1={'202,210,197'}
-        color2={'74,109,86'}
-        color3={'47,62,70'}
-        color4={'214,214,195'}
-        color5={'171,182,160'}
-        colorInteractive={'117,125,131'}
-    />
-    <Showcase /> 
-    <Indicator
-        appearDelay={3000}
-        color='azure'
-        width={32}
-        size={32}
-        showLabel={false}
-    />
+  <Background
+    colorBg1='rgb(164,191,161)'  colorBg2='rgb(53,79,82)'
+    color1='202,210,197'         color2='74,109,86'
+    color3='47,62,70'            color4='214,214,195'
+    color5='171,182,160'         colorInteractive='117,125,131'
+  />
+  <Showcase />
+  <Indicator {...indicator} />
 </Section>
 
-
-<!-- STYLE -->
 <style>
-    :global(html) {
-        /* Snap container */
-        scroll-snap-type: y mandatory;
+  :global(html) {
+    scroll-snap-type: y mandatory;
+    timeline-scope: --section;
+    scroll-behavior: smooth;
+  }
 
-        /*
-          Expose the named timeline to the entire document.
-          Add a new --section entry here if you ever need a
-          *different* timeline name per section.
-        */
-        timeline-scope: --section;
-
-        /* Smooth keyboard/anchor scrolling */
-        scroll-behavior: smooth;
-    }
-
-    :global(body) {
-        margin: 0;
-        /* Match Section's --section-bg so edges never flash */
-        background: #0b0c0e;
-    }
+  :global(body) {
+    margin: 0;
+    background: #0b0c0e;
+  }
 </style>

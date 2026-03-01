@@ -1,81 +1,59 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { browser } from '$app/environment';
+  import { onMount, onDestroy } from 'svelte'
+  import { browser } from '$app/environment'
 
-  // ─── Props ────────────────────────────────────────────────────────────────
+  export let colorBg1         = 'rgb(25, 11, 38)'
+  export let colorBg2         = 'rgb(36, 6, 64)'
+  export let color1           = '181,159,201'
+  export let color2           = '157,127,183'
+  export let color3           = '132,95,165'
+  export let color4           = '114,83,113'
+  export let color5           = '6,37,73'
+  export let colorInteractive = '137,237,247'
+  export let circleSize       = '80%'
+  export let blending         = 'hard-light'
+  export let fadeDelay        = 0
+  export let fadeDuration     = 1800
 
-  export let colorBg1: string = 'rgb(25, 11, 38)';
-  export let colorBg2: string = 'rgb(36, 6, 64)';
-
-  export let color1: string = '181,159,201';
-  export let color2: string = '157,127,183';
-  export let color3: string = '132,95,165';
-  export let color4: string = '114,83,113';
-  export let color5: string = '6,37,73';
-  export let colorInteractive: string = '137,237,247';
-
-  export let circleSize: string = '80%';
-  export let blending: string = 'hard-light';
-
-  /** Delay in ms before the fade-in starts */
-  export let fadeDelay: number = 0;
-  /** Duration of the fade-in in ms */
-  export let fadeDuration: number = 1800;
-
-  // ─── Fade-in state ────────────────────────────────────────────────────────
-
-  let visible: boolean = false;
-
-  // ─── Interactive blob tracking ────────────────────────────────────────────
-
-  let curX: number = 0;
-  let curY: number = 0;
-  let tgX: number = 0;
-  let tgY: number = 0;
-  let rafId: number;
-  let interBubble: HTMLDivElement;
+  let visible      = false
+  let interBubble: HTMLDivElement
+  let curX = 0, curY = 0, tgX = 0, tgY = 0
+  let rafId: number
+  let timer: ReturnType<typeof setTimeout>
 
   function move(): void {
-    curX += (tgX - curX) / 20;
-    curY += (tgY - curY) / 20;
-    interBubble.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`;
-    rafId = requestAnimationFrame(move);
+    curX += (tgX - curX) / 20
+    curY += (tgY - curY) / 20
+    interBubble.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`
+    rafId = requestAnimationFrame(move)
   }
 
   function onMouseMove(e: MouseEvent): void {
-    tgX = e.clientX;
-    tgY = e.clientY;
+    tgX = e.clientX
+    tgY = e.clientY
   }
 
-  let timer: ReturnType<typeof setTimeout>;
+  onMount(() => {
+    move()
+    window.addEventListener('mousemove', onMouseMove)
+    timer = setTimeout(() => { visible = true }, fadeDelay)
+  })
 
-  onMount((): void => {
-    move();
-    window.addEventListener('mousemove', onMouseMove);
-
-    // Small timeout so the browser has painted the initial opacity: 0
-    // state before we flip visible — guarantees the transition fires
-    timer = setTimeout(() => { visible = true; }, fadeDelay);
-  });
-
-  onDestroy((): void => {
-    if (!browser) return;
-    clearTimeout(timer);
-    cancelAnimationFrame(rafId);
-    window.removeEventListener('mousemove', onMouseMove);
-  });
+  onDestroy(() => {
+    if (!browser) return
+    clearTimeout(timer)
+    cancelAnimationFrame(rafId)
+    window.removeEventListener('mousemove', onMouseMove)
+  })
 </script>
 
+<!-- Hidden SVG registers the goo filter used by .gradients-container -->
 <svg xmlns="http://www.w3.org/2000/svg" class="svg-filter">
   <defs>
     <filter id="goo">
       <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
-      <feColorMatrix
-        in="blur"
-        mode="matrix"
-        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8"
-        result="goo"
-      />
+      <feColorMatrix in="blur" mode="matrix"
+        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo" />
       <feBlend in="SourceGraphic" in2="goo" />
     </filter>
   </defs>
@@ -85,16 +63,11 @@
   class="gradient-bg"
   class:visible
   style="
-    --color-bg1: {colorBg1};
-    --color-bg2: {colorBg2};
-    --color1: {color1};
-    --color2: {color2};
-    --color3: {color3};
-    --color4: {color4};
-    --color5: {color5};
+    --color-bg1: {colorBg1}; --color-bg2: {colorBg2};
+    --color1: {color1}; --color2: {color2}; --color3: {color3};
+    --color4: {color4}; --color5: {color5};
     --color-interactive: {colorInteractive};
-    --circle-size: {circleSize};
-    --blending: {blending};
+    --circle-size: {circleSize}; --blending: {blending};
     --fade-duration: {fadeDuration}ms;
   "
 >
@@ -109,27 +82,19 @@
 </div>
 
 <style>
-  .svg-filter {
-    display: none;
-  }
+  .svg-filter { display: none; }
 
   .gradient-bg {
     position: fixed;
     inset: 0;
-    width: 100vw;
-    height: 100vh;
     overflow: hidden;
     background: linear-gradient(40deg, var(--color-bg1), var(--color-bg2));
     z-index: 0;
-
-    /* Fade-in */
     opacity: 0;
     transition: opacity var(--fade-duration, 1800ms) ease;
   }
 
-  .gradient-bg.visible {
-    opacity: 1;
-  }
+  .gradient-bg.visible { opacity: 1; }
 
   .gradients-container {
     filter: url(#goo) blur(40px);
@@ -164,69 +129,50 @@
   }
 
   .g1 {
-    background: radial-gradient(circle at center,
-      rgba(var(--color1), 0.8) 0%, rgba(var(--color1), 0) 50%) no-repeat;
-    width: var(--circle-size);
-    height: var(--circle-size);
-    top:  calc(50% - var(--circle-size) / 2);
-    left: calc(50% - var(--circle-size) / 2);
-    transform-origin: center center;
+    background: radial-gradient(circle at center, rgba(var(--color1), 0.8) 0%, rgba(var(--color1), 0) 50%) no-repeat;
+    width: var(--circle-size); height: var(--circle-size);
+    top: calc(50% - var(--circle-size) / 2); left: calc(50% - var(--circle-size) / 2);
     animation: moveVertical 30s ease infinite;
   }
 
   .g2 {
-    background: radial-gradient(circle at center,
-      rgba(var(--color2), 0.8) 0%, rgba(var(--color2), 0) 50%) no-repeat;
-    width: var(--circle-size);
-    height: var(--circle-size);
-    top:  calc(50% - var(--circle-size) / 2);
-    left: calc(50% - var(--circle-size) / 2);
+    background: radial-gradient(circle at center, rgba(var(--color2), 0.8) 0%, rgba(var(--color2), 0) 50%) no-repeat;
+    width: var(--circle-size); height: var(--circle-size);
+    top: calc(50% - var(--circle-size) / 2); left: calc(50% - var(--circle-size) / 2);
     transform-origin: calc(50% - 400px);
     animation: moveInCircle 20s reverse infinite;
   }
 
   .g3 {
-    background: radial-gradient(circle at center,
-      rgba(var(--color3), 0.8) 0%, rgba(var(--color3), 0) 50%) no-repeat;
-    width: var(--circle-size);
-    height: var(--circle-size);
-    top:  calc(50% - var(--circle-size) / 2 + 200px);
-    left: calc(50% - var(--circle-size) / 2 - 500px);
+    background: radial-gradient(circle at center, rgba(var(--color3), 0.8) 0%, rgba(var(--color3), 0) 50%) no-repeat;
+    width: var(--circle-size); height: var(--circle-size);
+    top: calc(50% - var(--circle-size) / 2 + 200px); left: calc(50% - var(--circle-size) / 2 - 500px);
     transform-origin: calc(50% + 400px);
     animation: moveInCircle 40s linear infinite;
   }
 
   .g4 {
-    background: radial-gradient(circle at center,
-      rgba(var(--color4), 0.8) 0%, rgba(var(--color4), 0) 50%) no-repeat;
-    width: var(--circle-size);
-    height: var(--circle-size);
-    top:  calc(50% - var(--circle-size) / 2);
-    left: calc(50% - var(--circle-size) / 2);
+    background: radial-gradient(circle at center, rgba(var(--color4), 0.8) 0%, rgba(var(--color4), 0) 50%) no-repeat;
+    width: var(--circle-size); height: var(--circle-size);
+    top: calc(50% - var(--circle-size) / 2); left: calc(50% - var(--circle-size) / 2);
     transform-origin: calc(50% - 200px);
     animation: moveHorizontal 40s ease infinite;
     opacity: 0.7;
   }
 
   .g5 {
-    background: radial-gradient(circle at center,
-      rgba(var(--color5), 0.8) 0%, rgba(var(--color5), 0) 50%) no-repeat;
-    width:  calc(var(--circle-size) * 2);
-    height: calc(var(--circle-size) * 2);
-    top:  calc(50% - var(--circle-size));
-    left: calc(50% - var(--circle-size));
+    background: radial-gradient(circle at center, rgba(var(--color5), 0.8) 0%, rgba(var(--color5), 0) 50%) no-repeat;
+    width: calc(var(--circle-size) * 2); height: calc(var(--circle-size) * 2);
+    top: calc(50% - var(--circle-size)); left: calc(50% - var(--circle-size));
     transform-origin: calc(50% - 800px) calc(50% + 200px);
     animation: moveInCircle 20s ease infinite;
   }
 
   .interactive {
     background: radial-gradient(circle at center,
-      rgba(var(--color-interactive), 0.8) 0%,
-      rgba(var(--color-interactive), 0)   50%) no-repeat;
-    width: 100%;
-    height: 100%;
-    top:  -50%;
-    left: -50%;
+      rgba(var(--color-interactive), 0.8) 0%, rgba(var(--color-interactive), 0) 50%) no-repeat;
+    width: 100%; height: 100%;
+    top: -50%; left: -50%;
     opacity: 0.7;
   }
 </style>
