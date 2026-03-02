@@ -7,6 +7,8 @@
   import About      from '$lib/components/About.svelte'
   import Stack      from '$lib/components/Stack.svelte'
   import Showcase   from '$lib/components/Showcase.svelte'
+  import Contacts from '$lib/components/Contacts.svelte'
+  import ParticleBackground from '$lib/components/ParticleBackground.svelte'
 
   // Shared Indicator props — same on every section
   const indicator = { appearDelay: 3000, color: 'azure', width: 32, size: 32, showLabel: false }
@@ -59,6 +61,12 @@
   />
   <Showcase />
   <Indicator {...indicator} />
+</Section>
+
+<Section id="Контакти" effect="blink">
+  <ParticleBackground />
+  <Contacts />
+  <!-- No Indicator on last section — nowhere to scroll to -->
 </Section>
 
 <style>
