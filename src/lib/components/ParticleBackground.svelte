@@ -7,6 +7,9 @@
   export let fadeDelay    = 0
   export let fadeDuration = 1400
 
+  export let bgColor: string = '#000000'
+  export let bgImage: string
+
   // ─── Config ──────────────────────────────────────────────────────────────────
 
   const COUNT         = 35          // fewer → bigger, still performant
@@ -302,16 +305,17 @@
   onDestroy(() => { if (!browser) return; cancelAnimationFrame(rafId); clearTimeout(timer) })
 </script>
 
-<div class="particle-bg" class:visible style="--fade: {fadeDuration}ms">
+<div class="particle-bg" class:visible style:background={bgImage} style="--fade: {fadeDuration}ms; background-color: {bgColor}; background-image:{bgImage}" >
   <canvas bind:this={canvas}></canvas>
 </div>
 
 <style>
   .particle-bg {
     position: fixed; inset: 0; z-index: 0;
-    background: #060810; opacity: 0;
+    opacity: 0;
     transition: opacity var(--fade, 1400ms) ease;
     pointer-events: none;
+    
   }
   .particle-bg.visible { opacity: 1; }
   canvas { display: block; width: 100%; height: 100%; }

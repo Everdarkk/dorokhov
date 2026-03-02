@@ -114,11 +114,11 @@
 <div class="contacts" bind:this={container}>
 
   <header class="section-header">
-    <span class="eyebrow" class:visible={eyebrowVisible}>зв'язок</span>
+    <span class="eyebrow" class:visible={eyebrowVisible}>контакти</span>
     <h2 class="section-title" class:visible={titleVisible}
       style="--title-gradient: linear-gradient(135deg, #a8edea 0%, #fed6e3 50%, #a8edea 100%)"
     >
-      Мої <em>контакти</em>
+      Зв&apos;яжіться <em>зі мною</em>
     </h2>
   </header>
 
@@ -267,7 +267,9 @@
   .blob:focus-visible .blob__icon { transform: scale(1.18); }
 
   /* Popup: handle in muted style */
-  .popup__summary { opacity: 0.65; font-size: 0.9rem; letter-spacing: 0.04em; }
+  .popup__summary { 
+    opacity: 0.65; 
+  }
 
   @media (max-width: 640px) {
     .contacts { padding: 3.5rem 1rem 1rem; gap: 1rem; }

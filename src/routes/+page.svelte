@@ -41,32 +41,33 @@
   <Indicator {...indicator} />
 </Section>
 
-<Section id="Стек" effect="blink">
+<Section id="Роботи" effect="blink">
   <Background
     colorBg1='rgb(64,64,81)'   colorBg2='rgb(40,32,45)'
     color1='208,208,208'       color2='248,248,248'
     color3='154,147,171'       color4='32,32,32'
     color5='255,241,153'       colorInteractive='195,164,195'
   />
-  <Stack />
-  <Indicator {...indicator} />
-</Section>
-
-<Section id="Роботи" effect="blink">
-  <Background
-    colorBg1='rgb(164,191,161)'  colorBg2='rgb(53,79,82)'
-    color1='202,210,197'         color2='74,109,86'
-    color3='47,62,70'            color4='214,214,195'
-    color5='171,182,160'         colorInteractive='117,125,131'
-  />
   <Showcase />
   <Indicator {...indicator} />
 </Section>
 
+<Section id="Стек" effect="blink">
+  <ParticleBackground 
+    bgColor='#2d3436'
+    bgImage='linear-gradient(315deg, #2d3436 0%, #000000 74%)'
+  />
+  <Stack />
+  <Indicator {...indicator} />
+</Section>
+
 <Section id="Контакти" effect="blink">
-  <ParticleBackground />
+  <ParticleBackground
+    bgColor='#bdcad9'
+    bgImage='linear-gradient(315deg, #bdcad9 0%, #e1dada 74%)'
+  />
   <Contacts />
-  <!-- No Indicator on last section — nowhere to scroll to -->
+  <Indicator />
 </Section>
 
 <style>
