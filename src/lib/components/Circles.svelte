@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount }      from 'svelte'
+  import { circlesColor } from '$lib/stores/circlesColor'
 
   interface NavDot {
     id:    string
@@ -16,9 +17,12 @@
   export let showLabel   = true
   export let threshold   = 0.5
 
-  let dots:     NavDot[] = []
-  let activeId  = ''
-  let visible   = false
+  // Live colour driven by the store; falls back to the prop
+  $: resolvedActiveColor = $circlesColor || activeColor
+
+  let dots:    NavDot[] = []
+  let activeId = ''
+  let visible  = false
 
   function scrollTo(el: HTMLElement): void {
     el.scrollIntoView({ behavior: 'smooth' })
@@ -33,26 +37,20 @@
 
   onMount(() => {
     const sections = Array.from(document.querySelectorAll<HTMLElement>('.snap-section'))
-
     dots = sections.map((el) => ({ id: el.id || '', label: el.id || '', el }))
     if (dots.length) activeId = dots[0].id
 
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
+        for (const entry of entries)
           if (entry.isIntersecting) activeId = (entry.target as HTMLElement).id ?? ''
-        }
       },
       { threshold },
     )
 
     sections.forEach((el) => observer.observe(el))
     const tid = setTimeout(() => { visible = true }, appearDelay)
-
-    return () => {
-      observer.disconnect()
-      clearTimeout(tid)
-    }
+    return () => { observer.disconnect(); clearTimeout(tid) }
   })
 </script>
 
@@ -67,7 +65,12 @@
     <button
       class="dot"
       class:active={isActive}
-      style="--size: {size}px; --active-size: {activeSize}px; --color: {color}; --active-color: {activeColor};"
+      style="
+        --size: {size}px;
+        --active-size: {activeSize}px;
+        --color: {color};
+        --active-color: {resolvedActiveColor};
+      "
       aria-label="Go to section {dot.label || dot.id}"
       aria-current={isActive ? 'true' : undefined}
       tabindex="0"
@@ -112,7 +115,6 @@
     outline: none;
   }
 
-  /* Visual circle via pseudo-element so size/colour animate independently */
   .dot::before {
     content: '';
     display: block;
@@ -141,12 +143,12 @@
     box-shadow: 0 0 10px 2px color-mix(in srgb, var(--active-color) 50%, transparent);
   }
 
-  /* Hover tooltip */
   .label {
     position: absolute;
     left: calc(100% + 10px);
     white-space: nowrap;
     font-size: 0.72rem;
+    font-weight: bold;
     font-family: 'ICTV', sans-serif;
     color: var(--active-color);
     letter-spacing: 0.08em;

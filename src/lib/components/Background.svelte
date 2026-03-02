@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { browser } from '$app/environment'
+  import { browser }            from '$app/environment'
+  import { activeSection }      from '$lib/stores/activeSection'
+  import { mouse }              from '$lib/stores/mouse'
 
   export let colorBg1         = 'rgb(25, 11, 38)'
   export let colorBg2         = 'rgb(36, 6, 64)'
@@ -14,41 +16,69 @@
   export let blending         = 'hard-light'
   export let fadeDelay        = 0
   export let fadeDuration     = 1800
+  export let sectionId        = ''   // must match the parent Section's id
 
   let visible      = false
   let interBubble: HTMLDivElement
-  let curX = 0, curY = 0, tgX = 0, tgY = 0
+  let curX = 0, curY = 0
   let rafId: number
   let timer: ReturnType<typeof setTimeout>
+  let active = false
+
+  // ─── RAF loop — only runs when this section is active ────────────────────────
 
   function move(): void {
+    // Lerp toward mouse using the global store values (no own listener needed)
+    const tgX = $mouse.x
+    const tgY = $mouse.y
     curX += (tgX - curX) / 20
     curY += (tgY - curY) / 20
-    interBubble.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`
-    rafId = requestAnimationFrame(move)
+    if (interBubble) {
+      interBubble.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`
+    }
+    if (active) rafId = requestAnimationFrame(move)
   }
 
-  function onMouseMove(e: MouseEvent): void {
-    tgX = e.clientX
-    tgY = e.clientY
+  // ─── React to which section is on screen ─────────────────────────────────────
+
+  $: {
+    if (sectionId) {
+      const nowActive = $activeSection === sectionId
+      if (nowActive && !active) {
+        active = true
+        rafId  = requestAnimationFrame(move)
+      } else if (!nowActive && active) {
+        active = false
+        cancelAnimationFrame(rafId)
+      }
+    }
   }
 
   onMount(() => {
-    move()
-    window.addEventListener('mousemove', onMouseMove)
+    // If no sectionId provided, fall back to always-on (backwards compat)
+    if (!sectionId) {
+      active = true
+      rafId  = requestAnimationFrame(move)
+    }
     timer = setTimeout(() => { visible = true }, fadeDelay)
+
+    return () => {
+      active = false
+      cancelAnimationFrame(rafId)
+      clearTimeout(timer)
+    }
   })
 
   onDestroy(() => {
     if (!browser) return
-    clearTimeout(timer)
+    active = false
     cancelAnimationFrame(rafId)
-    window.removeEventListener('mousemove', onMouseMove)
+    clearTimeout(timer)
   })
 </script>
 
-<!-- Hidden SVG registers the goo filter used by .gradients-container -->
-<svg xmlns="http://www.w3.org/2000/svg" class="svg-filter">
+<!-- Hidden SVG registers the goo filter -->
+<svg xmlns="http://www.w3.org/2000/svg" class="svg-filter" aria-hidden="true">
   <defs>
     <filter id="goo">
       <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
@@ -92,6 +122,8 @@
     z-index: 0;
     opacity: 0;
     transition: opacity var(--fade-duration, 1800ms) ease;
+    /* Prevents repaints on the main layer when bubbles animate */
+    isolation: isolate;
   }
 
   .gradient-bg.visible { opacity: 1; }
@@ -101,6 +133,8 @@
     width: 100%;
     height: 100%;
     position: relative;
+    /* Own compositing layer so the filter doesn't repaint parent */
+    will-change: contents;
   }
 
   .g1, .g2, .g3, .g4, .g5, .interactive {
@@ -133,14 +167,16 @@
     width: var(--circle-size); height: var(--circle-size);
     top: calc(50% - var(--circle-size) / 2); left: calc(50% - var(--circle-size) / 2);
     animation: moveVertical 30s ease infinite;
+    will-change: transform;
   }
 
   .g2 {
-    background: radial-gradient(circle at center, rgba(var(--color2), 0.8) 0%, rgba(var(--color2), 0) 50%) no-repeat;
+    background: radial-gradient(circle at center, rgba(var(--color2), 0.8) 0%, rgba(var(--color2), 0) 50%) no-replace;
     width: var(--circle-size); height: var(--circle-size);
     top: calc(50% - var(--circle-size) / 2); left: calc(50% - var(--circle-size) / 2);
     transform-origin: calc(50% - 400px);
     animation: moveInCircle 20s reverse infinite;
+    will-change: transform;
   }
 
   .g3 {
@@ -149,6 +185,7 @@
     top: calc(50% - var(--circle-size) / 2 + 200px); left: calc(50% - var(--circle-size) / 2 - 500px);
     transform-origin: calc(50% + 400px);
     animation: moveInCircle 40s linear infinite;
+    will-change: transform;
   }
 
   .g4 {
@@ -158,6 +195,7 @@
     transform-origin: calc(50% - 200px);
     animation: moveHorizontal 40s ease infinite;
     opacity: 0.7;
+    will-change: transform;
   }
 
   .g5 {
@@ -166,6 +204,7 @@
     top: calc(50% - var(--circle-size)); left: calc(50% - var(--circle-size));
     transform-origin: calc(50% - 800px) calc(50% + 200px);
     animation: moveInCircle 20s ease infinite;
+    will-change: transform;
   }
 
   .interactive {
@@ -174,5 +213,6 @@
     width: 100%; height: 100%;
     top: -50%; left: -50%;
     opacity: 0.7;
+    will-change: transform;
   }
 </style>

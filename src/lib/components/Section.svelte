@@ -1,12 +1,38 @@
 <script lang="ts">
+  import { onMount }        from 'svelte'
+  import { circlesColor }   from '$lib/stores/circlesColor'
+  import { activeSection }  from '$lib/stores/activeSection'
+
   type ScrollEffect = 'blink' | 'slide' | 'zoom'
 
-  export let effect: ScrollEffect = 'blink'
-  export let id: string = ''
+  export let effect:    ScrollEffect      = 'blink'
+  export let id:        string            = ''
+
+  /**
+   * Optional colour for the Circles nav dots while this section is active.
+   * Accepts any CSS colour — e.g. 'azure', '#ff6b6b', 'rgba(255,100,50,0.9)'.
+   */
+  export let dotColor:  string | undefined = undefined
+
+  onMount(() => {
+    const el = document.getElementById(id)
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          activeSection.set(id)
+          if (dotColor) circlesColor.set(dotColor)
+        }
+      },
+      { threshold: 0.5 },
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  })
 </script>
 
-<!-- Each section occupies 100dvh in normal flow (scroll-snap + view-timeline). -->
-<!-- Its .content is position:fixed so sections cross-fade during scroll. -->
 <section
   class="snap-section"
   class:effect-blink={effect === 'blink'}
@@ -20,7 +46,6 @@
 </section>
 
 <style>
-  /* Takes up 100dvh in flow — powers scroll-snap and view-timeline */
   .snap-section {
     scroll-snap-align: start;
     scroll-snap-stop: always;
@@ -28,7 +53,6 @@
     view-timeline: --section;
   }
 
-  /* Fixed full-screen layer — only one visible at a time via animation */
   .content {
     position: fixed;
     inset: 0;
@@ -37,11 +61,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: space-around;
-    background: var(--section-bg, #0b0c0e);
 
     animation-timeline: --section;
     animation-fill-mode: both;
     animation-timing-function: ease-in-out;
+
+    /* Promote to its own compositor layer once — cheaper than per-frame repaints */
+    will-change: opacity, filter;
   }
 
   /* ── Effect: blink ── */

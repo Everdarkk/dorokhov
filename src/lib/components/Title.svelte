@@ -1,15 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount }    from 'svelte'
   import { lerp, findSnapSection } from '$lib/utils/animation'
-
-  // ─── Types ───────────────────────────────────────────────────────────────────
+  import { mouse }      from '$lib/stores/mouse'
 
   interface Letter {
     char:       string
     isSpace:    boolean
     visible:    boolean
-    fromAbove:  boolean  // true = enters from above, false = from below (alternates)
-    noisePhase: number   // golden-ratio offset for per-letter noise variation
+    fromAbove:  boolean
+    noisePhase: number
   }
 
   // ─── Props ───────────────────────────────────────────────────────────────────
@@ -32,20 +31,31 @@
   let subtitle2Visible = false
   let blobVisible      = false
 
-  // Container 3-D tilt
   let currentRotX = 0, currentRotY = 0
   let targetRotX  = 0, targetRotY  = 0
 
-  // Cursor position
-  let cursorX = 0, cursorY = 0
-
-  // DOM refs
   let container: HTMLDivElement
   let letterEls: (HTMLSpanElement | null)[] = []
 
-  // RAF + timeout handles
   let rafId:   number
   let pending: ReturnType<typeof setTimeout>[] = []
+
+  // ─── Rect cache — updated lazily, not every frame ────────────────────────────
+  // getBoundingClientRect() is a layout read that forces reflow.
+  // We cache rects and only invalidate on resize.
+
+  let cachedRects: (DOMRect | null)[] = []
+  let rectsDirty = true
+
+  function invalidateRects(): void { rectsDirty = true }
+
+  function refreshRects(): void {
+    for (let i = 0; i < letterEls.length; i++) {
+      const el = letterEls[i]
+      cachedRects[i] = el ? el.getBoundingClientRect() : null
+    }
+    rectsDirty = false
+  }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -61,93 +71,75 @@
   // ─── Entrance / exit ─────────────────────────────────────────────────────────
 
   function playAnimation(): void {
-    // Blob inflates first, then letters cascade in, then subtitles slide in
     pending.push(setTimeout(() => { blobVisible = true }, 80))
-
     letters.forEach((_, i) => {
       pending.push(setTimeout(() => {
         letters[i].visible = true
         letters = [...letters]
       }, startDelay + i * letterDelay))
     })
-
     const afterLetters = startDelay + letters.length * letterDelay
     pending.push(
       setTimeout(() => { subtitleVisible  = true }, afterLetters + 200),
       setTimeout(() => { subtitle2Visible = true }, afterLetters + 340),
     )
+    // Letters moved — invalidate cached rects after entrance
+    setTimeout(invalidateRects, afterLetters + 400)
   }
 
   function hideImmediately(): void {
     for (const id of pending) clearTimeout(id)
     pending = []
-
     container?.classList.add('no-transition')
     letters          = buildLetters(title)
     letterOffsets    = letters.map(() => ({ ox: 0, oy: 0 }))
     subtitleVisible  = false
     subtitle2Visible = false
     blobVisible      = false
-
     requestAnimationFrame(() => container?.classList.remove('no-transition'))
-  }
-
-  // ─── Mouse handlers ──────────────────────────────────────────────────────────
-
-  function onMouseMove(e: MouseEvent): void {
-    cursorX  = e.clientX
-    cursorY  = e.clientY
-    targetRotX = -((e.clientY / window.innerHeight) * 2 - 1) * maxTilt
-    targetRotY =  ((e.clientX / window.innerWidth)  * 2 - 1) * maxTilt
-  }
-
-  function onMouseLeave(): void {
-    targetRotX = 0
-    targetRotY = 0
   }
 
   // ─── RAF loop ────────────────────────────────────────────────────────────────
 
-  /**
-   * Three effects per frame:
-   *  1. Container 3-D tilt toward cursor
-   *  2. Per-letter attraction (inverse-square pull toward cursor)
-   *  3. Per-letter sinusoidal noise (amplitude scales with proximity)
-   */
   function tick(timestamp: number): void {
-    // 1 — Tilt
+    const cx = $mouse.x
+    const cy = $mouse.y
+
+    // 1 — Container tilt
+    targetRotX = -((cy / window.innerHeight) * 2 - 1) * maxTilt
+    targetRotY =  ((cx / window.innerWidth)  * 2 - 1) * maxTilt
     currentRotX = lerp(currentRotX, targetRotX, lerpFactor)
     currentRotY = lerp(currentRotY, targetRotY, lerpFactor)
     container?.style.setProperty('--rot-x', `${currentRotX.toFixed(3)}deg`)
     container?.style.setProperty('--rot-y', `${currentRotY.toFixed(3)}deg`)
 
-    // Constants for letter effects
-    const PULL_RADIUS    = 240
-    const MAX_PULL       = 26
-    const NOISE_RADIUS   = 320
-    const MAX_NOISE      = 5
-    const NOISE_FREQ     = 0.0028
-    const LERP_LETTER    = 0.085
+    // Refresh rects once per dirty cycle (e.g. after entrance animation)
+    if (rectsDirty) refreshRects()
 
-    letters.forEach((letter, i) => {
-      if (letter.isSpace || !letterEls[i]) return
+    const PULL_RADIUS  = 240
+    const MAX_PULL     = 26
+    const NOISE_RADIUS = 320
+    const MAX_NOISE    = 5
+    const NOISE_FREQ   = 0.0028
+    const LERP_LETTER  = 0.085
 
-      const el   = letterEls[i]!
-      const rect = el.getBoundingClientRect()
-      if (rect.width === 0) return
+    for (let i = 0; i < letters.length; i++) {
+      const letter = letters[i]
+      if (letter.isSpace || !letterEls[i]) continue
+
+      const rect = cachedRects[i]
+      if (!rect || rect.width === 0) continue
 
       const lx   = rect.left + rect.width  / 2
       const ly   = rect.top  + rect.height / 2
-      const dx   = cursorX - lx
-      const dy   = cursorY - ly
+      const dx   = cx - lx
+      const dy   = cy - ly
       const dist = Math.hypot(dx, dy)
 
-      // 2 — Attraction
       const force = MAX_PULL / (1 + (dist / PULL_RADIUS) ** 2)
       const ux    = dist > 0 ? dx / dist : 0
       const uy    = dist > 0 ? dy / dist : 0
 
-      // 3 — Noise
       const noiseAmp = MAX_NOISE * Math.max(0, 1 - dist / NOISE_RADIUS)
       const phaseX   = timestamp * NOISE_FREQ * (1 + (letter.noisePhase % 0.6)) + letter.noisePhase
       const phaseY   = timestamp * NOISE_FREQ * (0.7 + (letter.noisePhase % 0.4)) + letter.noisePhase + 1.3
@@ -156,10 +148,10 @@
       letterOffsets[i].ox = lerp(letterOffsets[i].ox, ux * force + noiseAmp * Math.sin(phaseX), LERP_LETTER)
       letterOffsets[i].oy = lerp(letterOffsets[i].oy, uy * force + noiseAmp * Math.cos(phaseY), LERP_LETTER)
 
-      // Direct DOM write — intentional for 60fps performance (bypasses Svelte reactivity)
+      const el = letterEls[i]!
       el.style.setProperty('--ox', `${letterOffsets[i].ox.toFixed(2)}px`)
       el.style.setProperty('--oy', `${letterOffsets[i].oy.toFixed(2)}px`)
-    })
+    }
 
     rafId = requestAnimationFrame(tick)
   }
@@ -169,8 +161,7 @@
   onMount(() => {
     letters       = buildLetters(title)
     letterOffsets = letters.map(() => ({ ox: 0, oy: 0 }))
-    cursorX       = window.innerWidth  / 2
-    cursorY       = window.innerHeight / 2
+    cachedRects   = letters.map(() => null)
 
     const target   = findSnapSection(container)
     const observer = new IntersectionObserver(
@@ -184,15 +175,13 @@
     )
 
     observer.observe(target)
-    window.addEventListener('mousemove',  onMouseMove)
-    window.addEventListener('mouseleave', onMouseLeave)
+    window.addEventListener('resize', invalidateRects, { passive: true })
     rafId = requestAnimationFrame(tick)
 
     return (): void => {
       for (const id of pending) clearTimeout(id)
       observer.disconnect()
-      window.removeEventListener('mousemove',  onMouseMove)
-      window.removeEventListener('mouseleave', onMouseLeave)
+      window.removeEventListener('resize', invalidateRects)
       cancelAnimationFrame(rafId)
     }
   })
@@ -203,7 +192,6 @@
   bind:this={container}
   style="--rot-x: 0deg; --rot-y: 0deg;"
 >
-  <!-- Glass blob — appears before letters to provide a background layer -->
   <div class="glass-blob" class:glass-blob--visible={blobVisible} aria-hidden="true">
     <div class="glass-blob__body"></div>
     <div class="glass-blob__shine"></div>
@@ -215,10 +203,6 @@
       {#if letter.isSpace}
         <span class="letter letter--space">&nbsp;</span>
       {:else}
-        <!--
-          --drop: entrance travel direction (negative = from above, positive = from below)
-          --ox/--oy: cursor offset, written each frame by the RAF loop
-        -->
         <span
           class="letter"
           class:letter--visible={letter.visible}
@@ -229,15 +213,11 @@
     {/each}
   </h1>
 
-  <!-- Left subtitle slides in from the left, right one from the right -->
   <p class="subtitle subtitle--left"  class:subtitle--visible={subtitleVisible}>{subtitle}</p>
   <p class="subtitle subtitle--right" class:subtitle--visible={subtitle2Visible}>{subtitle2}</p>
 </div>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Onest:wght@300;400&display=swap');
-
-  /* Kill transitions for one frame during hideImmediately() */
   .container.no-transition *,
   .container.no-transition { transition: none !important; }
 
@@ -257,7 +237,6 @@
     will-change: transform;
   }
 
-  /* ── Glass blob ── */
   .glass-blob {
     position: absolute;
     width:  clamp(320px, 70vw, 920px);
@@ -277,14 +256,14 @@
   .glass-blob--visible { opacity: 1; transform: scale(1); filter: blur(0); }
 
   .glass-blob__body {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     border-radius: var(--rx) / var(--ry);
     background: rgba(255,255,255,0.06);
     backdrop-filter: blur(12px) saturate(1.4);
     -webkit-backdrop-filter: blur(12px) saturate(1.4);
     animation: blob-morph var(--dur) ease-in-out var(--del) infinite alternate;
     z-index: 0;
+    will-change: border-radius;
   }
 
   .glass-blob__shine {
@@ -295,13 +274,12 @@
   }
 
   .glass-blob__ring {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     border-radius: inherit;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14), inset 0 1px 0 rgba(255,255,255,0.22);
-    z-index: 2;
-    pointer-events: none;
+    z-index: 2; pointer-events: none;
     animation: blob-morph var(--dur) ease-in-out calc(var(--del) - 0.4s) infinite alternate;
+    will-change: border-radius;
   }
 
   @keyframes blob-morph {
@@ -311,29 +289,16 @@
     100% { border-radius: var(--ry) / var(--rx); }
   }
 
-  /* ── Title ── */
   .title {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin: 0;
-    padding: 0.08em 0.5em;
-    overflow: visible;
+    position: relative; z-index: 1;
+    display: flex; flex-wrap: wrap; justify-content: center;
+    margin: 0; padding: 0.08em 0.5em; overflow: visible;
     font-family: 'Bulbasaur', sans-serif;
     font-size: clamp(2.8rem, 9vw, 8.5rem);
-    font-weight: 900;
-    letter-spacing: 0.09em;
-    line-height: 1.05;
-    color: #fff;
-    text-shadow: 0 2px 28px rgba(0,0,0,0.3);
+    font-weight: 900; letter-spacing: 0.09em; line-height: 1.05;
+    color: #fff; text-shadow: 0 2px 28px rgba(0,0,0,0.3);
   }
 
-  /*
-    Hidden: translateY(--drop) + cursor offset (--ox/--oy)
-    Visible: translateY(0) + cursor offset (still active, driven by RAF loop)
-  */
   .letter {
     display: inline-block;
     opacity: 0;
@@ -351,20 +316,12 @@
 
   .letter--space { opacity: 1; transform: none; transition: none; white-space: pre; }
 
-  /* ── Subtitles ── */
   .subtitle {
-    position: relative;
-    text-align: center;
-    z-index: 1;
-    margin: 0;
-    font-family: 'ICTV', sans-serif;
-    font-size: clamp(1rem, 2vw, 2rem);
-    font-weight: 100;
-    color: rgba(255,255,255,0.70);
-    text-shadow: 0 1px 10px rgba(255,255,255,0.12);
-    white-space: nowrap;
-    width: 100%;
-    opacity: 0;
+    position: relative; text-align: center; z-index: 1;
+    margin: 0; font-family: 'ICTV', sans-serif;
+    font-size: clamp(1rem, 2vw, 2rem); font-weight: 100;
+    color: rgba(255,255,255,0.70); text-shadow: 0 1px 10px rgba(255,255,255,0.12);
+    white-space: nowrap; width: 100%; opacity: 0;
     transition:
       opacity   0.85s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
