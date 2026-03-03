@@ -73,8 +73,10 @@
 
   let stopPopup:    () => void
   let stopObserver: () => void
+  let isTouchDevice = false
 
   onMount(() => {
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     stopPopup = startPopupLoop(
       () => popupEl,
       () => ({ x: cursorX, y: cursorY }),
@@ -82,10 +84,10 @@
       () => hoveredIndex !== null ? (techCards[hoveredIndex]?.accent2 ?? null) : null,
     )
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
-    window.addEventListener('mousemove', onMouseMove)
+    if (!isTouchDevice) window.addEventListener('mousemove', onMouseMove)
     return () => {
       queue.clear(); stopPopup(); stopObserver()
-      window.removeEventListener('mousemove', onMouseMove)
+      if (!isTouchDevice) window.removeEventListener('mousemove', onMouseMove)
     }
   })
 
@@ -241,12 +243,13 @@
     filter: drop-shadow(0 1px 4px rgba(0,0,0,0.4));
   }
 
-  @media (max-width: 640px) {
-    .stack { padding: 3.5rem 1rem 1rem; gap: 1rem; }
-    .stack__grid { gap: 0.8rem; }
+  @media (max-width: 800px) {
+    .stack { padding: 3rem 0.85rem 0.85rem; gap: 0.75rem; }
+    .stack__grid { gap: 0.6rem; }
+    .blob { flex: 0 0 clamp(90px, 26vw, 140px); }
   }
 
   @media (max-width: 380px) {
-    .blob { flex: 0 0 clamp(100px, 42vw, 140px); }
+    .blob { flex: 0 0 clamp(80px, 28vw, 110px); }
   }
 </style>

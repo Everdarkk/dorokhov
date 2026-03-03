@@ -32,6 +32,7 @@
   let isMobile    = false
   let currentPage = 0
   let pageDir: -1 | 1 = -1
+  let slideOut     = false  // true while old card is exiting
 
   let cursorX = 0, cursorY = 0
 
@@ -48,16 +49,33 @@
   $: pageProjects  = projects.slice(currentPage * perPage, currentPage * perPage + perPage)
   $: activeProject = hoveredIndex !== null ? pageProjects[hoveredIndex] ?? null : null
 
+  const SLIDE_OUT_MS = 320
+
   function goToPage(idx: number): void {
     if (idx < 0 || idx >= pageCount || idx === currentPage) return
-    pageDir      = idx > currentPage ? -1 : 1
+    const dir: -1 | 1 = idx > currentPage ? -1 : 1
+    pageDir      = dir
     hoveredIndex = null
     popupEnabled = false
-    currentPage  = idx
-    requestAnimationFrame(() => {
-      cardVisible = pageProjects.map(() => false)
-      schedulePageEntrance()
-    })
+
+    if (isMobile) {
+      // Pause current video before sliding out
+      videoEls.forEach((v) => { if (v) { v.pause(); v.currentTime = 0 } })
+      // Trigger slide-out, then swap page and slide in
+      slideOut = true
+      queue.schedule(() => {
+        slideOut    = false
+        currentPage = idx
+        cardVisible = pageProjects.map(() => false)
+        schedulePageEntrance()
+      }, SLIDE_OUT_MS)
+    } else {
+      currentPage = idx
+      requestAnimationFrame(() => {
+        cardVisible = pageProjects.map(() => false)
+        schedulePageEntrance()
+      })
+    }
   }
 
   const nextPage = () => goToPage(currentPage + 1)
@@ -68,7 +86,13 @@
       queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, i * CARD_STAGGER)
     })
     const lastStart = (pageProjects.length - 1) * CARD_STAGGER
-    queue.schedule(() => { popupEnabled = true }, lastStart + ENTRANCE_MS)
+    queue.schedule(() => {
+      popupEnabled = true
+      // On touch devices autoplay since there's no hover
+      if (isTouchDevice) {
+        videoEls.forEach((v) => v?.play().catch(() => {}))
+      }
+    }, lastStart + ENTRANCE_MS)
   }
 
   function playAnimation(): void {
@@ -81,7 +105,12 @@
       queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, cardsStart + i * CARD_STAGGER)
     })
     const lastStart = cardsStart + (pageProjects.length - 1) * CARD_STAGGER
-    queue.schedule(() => { popupEnabled = true }, lastStart + ENTRANCE_MS)
+    queue.schedule(() => {
+      popupEnabled = true
+      if (isTouchDevice) {
+        videoEls.forEach((v) => v?.play().catch(() => {}))
+      }
+    }, lastStart + ENTRANCE_MS)
   }
 
   function hideImmediately(): void {
@@ -158,7 +187,7 @@
 
   function checkMobile(): void {
     const was = isMobile
-    isMobile = window.innerWidth < 640
+    isMobile = window.innerWidth < 800
     if (was !== isMobile) {
       currentPage = 0
       cardVisible = pageProjects.map(() => false)
@@ -169,24 +198,30 @@
   let stopMask:     () => void
   let stopPopup:    () => void
   let stopObserver: () => void
+  let isTouchDevice = false
 
   onMount(() => {
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     checkMobile()
     stopMask  = startBlobMaskAnimation(() => clipPathEls)
-    stopPopup = startPopupLoop(
-      () => popupEl,
-      () => ({ x: cursorX, y: cursorY }),
-      () => hoveredIndex !== null,
-      () => hoveredIndex !== null ? (pageProjects[hoveredIndex]?.accent2 ?? null) : null,
-    )
+    if (!isTouchDevice) {
+      stopPopup = startPopupLoop(
+        () => popupEl,
+        () => ({ x: cursorX, y: cursorY }),
+        () => hoveredIndex !== null,
+        () => hoveredIndex !== null ? (pageProjects[hoveredIndex]?.accent2 ?? null) : null,
+      )
+    } else {
+      stopPopup = () => {}
+    }
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
-    window.addEventListener('mousemove',   onMouseMove)
+    if (!isTouchDevice) window.addEventListener('mousemove',   onMouseMove)
     window.addEventListener('resize',      checkMobile)
     window.addEventListener('pointermove', onWindowPointerMove)
     window.addEventListener('pointerup',   onWindowPointerUp)
     return () => {
       queue.clear(); stopMask(); stopPopup(); stopObserver()
-      window.removeEventListener('mousemove',   onMouseMove)
+      if (!isTouchDevice) window.removeEventListener('mousemove',   onMouseMove)
       window.removeEventListener('resize',      checkMobile)
       window.removeEventListener('pointermove', onWindowPointerMove)
       window.removeEventListener('pointerup',   onWindowPointerUp)
@@ -252,6 +287,7 @@
         class="blob blob--has-link"
         aria-label={project.name}
         class:blob--visible={cardVisible[i]}
+        class:blob--slide-out={slideOut && isMobile}
         bind:this={cardEls[i]}
         style="
           --accent1: {project.accent1}; --accent2: {project.accent2};
@@ -375,8 +411,33 @@
     max-width: 360px;
   }
 
-  .showcase__grid .blob { --tx-enter: calc(var(--slide-dir, -1) * -40px); cursor: pointer; min-height: 0; z-index: 999; }
-  .showcase__grid .blob:not(.blob--visible) { transform: scale(0.55) translateX(var(--tx-enter, -40px)); }
+  /* ── Base blob transition (shared) ── */
+  .showcase__grid .blob {
+    cursor: pointer; min-height: 0; z-index: 999;
+    transition:
+      opacity   0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      filter    0.45s ease;
+  }
+
+  /* ── Desktop enter: scale+slide from slide direction ── */
+  .showcase__grid .blob:not(.blob--visible):not(.blob--slide-out) {
+    opacity: 0;
+    transform: scale(0.82) translateX(calc(var(--slide-dir, -1) * -60px));
+    filter: blur(4px);
+  }
+
+  /* ── Mobile slide-out: card exits in the nav direction ── */
+  .showcase__grid--mobile .blob.blob--slide-out {
+    opacity: 0;
+    transform: scale(0.82) translateX(calc(var(--slide-dir, -1) * 90px));
+    filter: blur(5px);
+    transition:
+      opacity   0.26s ease-in,
+      transform 0.26s ease-in,
+      filter    0.20s ease-in;
+    pointer-events: none;
+  }
 
   .blob__body {
     background: rgba(255,255,255,0.06);
@@ -428,10 +489,19 @@
     color: rgba(255,255,255,0.85);
   }
 
-  @media (max-width: 640px) {
-    .showcase { padding: 3.5rem 1rem 1rem; gap: 0.5rem; }
+    /* Mobile: full single-card view */
+  @media (max-width: 800px) {
+    .showcase { padding: 3rem 0.85rem 0.85rem; gap: 0.4rem; }
+    .showcase__grid { gap: 0.7rem; }
+    .showcase__grid--mobile {
+      max-width: min(440px, calc(100vw - 1.7rem));
+    }
     .pagination { gap: 0.4rem; padding: 0.35rem 0.7rem; }
     .pagination__dot { width: 6px; height: 6px; }
     .pagination__dot--active { width: 18px; }
+    /* Show video more prominently on mobile (no hover) */
+    .blob__video { opacity: 0.7; }
+    /* Prevent overflow during slide animations */
+    .showcase__grid--mobile { overflow: hidden; }
   }
 </style>

@@ -116,4 +116,17 @@
     50%  { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
   }
+
+  @media (max-width: 800px) {
+    .eyebrow {
+      font-size: 0.58rem;
+      padding: 0.22em 0.75em;
+      letter-spacing: 0.18em;
+      margin-bottom: 0.35rem;
+    }
+    .section-title {
+      font-size: clamp(1.15rem, 5.5vw, 1.75rem);
+      line-height: 1.2;
+    }
+  }
 </style>

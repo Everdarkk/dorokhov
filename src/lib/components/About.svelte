@@ -51,14 +51,16 @@
 
   let stopMask:     () => void
   let stopObserver: () => void
+  let isTouchDevice = false
 
   onMount(() => {
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     stopMask     = startBlobMaskAnimation(() => [clipPathEl])
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
-    window.addEventListener('mousemove', onMouseMove)
+    if (!isTouchDevice) window.addEventListener('mousemove', onMouseMove)
     return () => {
       queue.clear(); stopMask(); stopObserver()
-      window.removeEventListener('mousemove', onMouseMove)
+      if (!isTouchDevice) window.removeEventListener('mousemove', onMouseMove)
     }
   })
 
@@ -222,13 +224,16 @@
 
   .blob:hover .blob__body { box-shadow: 0 0 70px 12px color-mix(in srgb, var(--accent2) 55%, transparent 45%); }
 
-  @media (max-width: 640px) {
-    .about { padding: 3.5rem 1rem 1rem; gap: 1rem; }
-    .about__grid { gap: 0.75rem; }
-    .blob__inner { padding: 1rem 1.1rem; }
+  @media (max-width: 800px) {
+    .about { padding: 3rem 0.85rem 0.85rem; gap: 0.65rem; }
+    .about__grid { gap: 0.6rem; }
+    .blob__inner { padding: 0.8rem 0.9rem; gap: 1.2rem }
+    .blob__title { font-size: clamp(0.85rem, 3.5vw, 1.1rem); text-align: center; }
+    .blob__line  { font-size: clamp(0.72rem, 2.8vw, 0.9rem); }
+    .blob__line-icon { width: 1em; height: 1em; }
   }
 
   @media (max-width: 380px) {
-    .about__grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, 1fr); }
+    .about__grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, auto); }
   }
 </style>

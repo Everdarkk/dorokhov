@@ -101,7 +101,12 @@
 
   // ─── RAF loop ────────────────────────────────────────────────────────────────
 
+    let isTouchDevice = false
+
   function tick(timestamp: number): void {
+    // Skip cursor-based effects on touch/mobile devices
+    if (isTouchDevice) { rafId = requestAnimationFrame(tick); return }
+
     const cx = $mouse.x
     const cy = $mouse.y
 
@@ -159,6 +164,7 @@
   // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
   onMount(() => {
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     letters       = buildLetters(title)
     letterOffsets = letters.map(() => ({ ox: 0, oy: 0 }))
     cachedRects   = letters.map(() => null)
@@ -334,5 +340,11 @@
   @media (max-width: 600px) {
     .subtitle--left,
     .subtitle--right { text-align: center; padding-inline: 1rem; white-space: normal; }
+  }
+
+  @media (max-width: 800px) {
+    .container { padding: 1.2rem 1rem; gap: 1rem; }
+    .title { font-size: clamp(2.2rem, 14vw, 4rem); }
+    .subtitle { font-size: clamp(0.8rem, 3.5vw, 1.1rem); white-space: normal; text-align: center; }
   }
 </style>

@@ -82,7 +82,8 @@
     ctx = canvas.getContext('2d')!
     // Hint browser that we'll be using the canvas heavily for compositing
     ctx.imageSmoothingEnabled = false
-    particles = Array.from({ length: COUNT }, makeParticle)
+    const count = W < 800 ? Math.floor(COUNT * 0.45) : COUNT
+    particles = Array.from({ length: count }, makeParticle)
   }
 
   // ─── Shape renderer — shadowBlur only on cross (cheapest shape count) ────────
@@ -243,8 +244,16 @@
 
   function onResize(): void {
     if (!canvas) return
+    const wasMobile = W < 800
     W = canvas.width  = window.innerWidth
     H = canvas.height = window.innerHeight
+    const isMobileNow = W < 800
+    // Re-create particles if we crossed the mobile threshold
+    if (wasMobile !== isMobileNow) {
+      const count = isMobileNow ? Math.floor(COUNT * 0.45) : COUNT
+      particles = Array.from({ length: count }, makeParticle)
+      return
+    }
     for (const p of particles) {
       const e = p.size + 2
       p.x = Math.max(e, Math.min(W - e, p.x))

@@ -77,8 +77,10 @@
 
   let stopPopup:    () => void
   let stopObserver: () => void
+  let isTouchDevice = false
 
   onMount(() => {
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     stopPopup = startPopupLoop(
       () => popupEl,
       () => ({ x: cursorX, y: cursorY }),
@@ -86,10 +88,10 @@
       () => hoveredIndex !== null ? (contacts[hoveredIndex]?.accent2 ?? null) : null,
     )
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
-    window.addEventListener('mousemove', onMouseMove)
+    if (!isTouchDevice) window.addEventListener('mousemove', onMouseMove)
     return () => {
       queue.clear(); stopPopup(); stopObserver()
-      window.removeEventListener('mousemove', onMouseMove)
+      if (!isTouchDevice) window.removeEventListener('mousemove', onMouseMove)
     }
   })
 
@@ -244,12 +246,28 @@
 
   .popup__summary { opacity: 0.65; }
 
-  @media (max-width: 640px) {
-    .contacts { padding: 3.5rem 1rem 1rem; gap: 1rem; }
-    .contacts__grid { gap: 1rem; }
+  @media (max-width: 800px) {
+    .contacts { padding: 3rem 0.85rem 0.85rem; gap: 0.65rem; }
+
+    /* 2-column x 3-row grid */
+    .contacts__grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.65rem;
+      max-width: min(380px, calc(100vw - 1.7rem));
+      height: auto;
+      align-self: center;
+    }
+
+    /* Each blob fills its grid cell, keep square via padding trick */
+    .blob {
+      flex: none;
+      width: 100%;
+      aspect-ratio: 1;
+    }
   }
 
   @media (max-width: 380px) {
-    .blob { flex: 0 0 clamp(100px, 40vw, 130px); }
+    .contacts__grid { gap: 0.5rem; max-width: calc(100vw - 1.7rem); }
   }
 </style>
