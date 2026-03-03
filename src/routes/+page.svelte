@@ -10,8 +10,6 @@
   import Showcase           from '$lib/components/Showcase.svelte'
   import Contacts           from '$lib/components/Contacts.svelte'
 
-  export const prerender = true
-
   const indicator = { appearDelay: 3000, color: 'azure', width: 32, size: 32, showLabel: false }
 </script>
 

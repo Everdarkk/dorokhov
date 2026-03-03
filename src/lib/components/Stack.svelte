@@ -3,7 +3,6 @@
   import { browser } from '$app/environment'
   import { techCards } from '$lib/data/stack'
   import {
-    lerp,
     findSnapSection,
     observeSection,
     createTimeoutQueue,
@@ -11,8 +10,7 @@
     resetCardTilts,
     startPopupLoop,
   } from '$lib/utils/animation'
-
-  // ─── Animation timing ────────────────────────────────────────────────────────
+  import SectionHeader from '$lib/components/SectionHeader.svelte'
 
   const INTRO_DELAY         = 200
   const TITLE_DELAY         = 180
@@ -20,24 +18,18 @@
   const CARD_STAGGER        = 100
   const ENTRANCE_TRANSITION = 700
 
-  // ─── State ───────────────────────────────────────────────────────────────────
-
-  let eyebrowVisible          = false
-  let titleVisible            = false
-  let cardVisible: boolean[]  = techCards.map(() => false)
-  let popupEnabled            = false
+  let eyebrowVisible         = false
+  let titleVisible           = false
+  let cardVisible: boolean[] = techCards.map(() => false)
+  let popupEnabled           = false
   let hoveredIndex: number | null = null
-
   let cursorX = 0, cursorY = 0
 
-  // DOM refs
   let container: HTMLDivElement
   let cardEls:   HTMLElement[]  = []
   let popupEl:   HTMLDivElement
 
   const queue = createTimeoutQueue()
-
-  // ─── Entrance / exit ─────────────────────────────────────────────────────────
 
   function playAnimation(): void {
     queue.schedule(() => { eyebrowVisible = true }, INTRO_DELAY)
@@ -45,13 +37,9 @@
 
     const cardsStart = INTRO_DELAY + TITLE_DELAY + CARDS_DELAY
     techCards.forEach((_, i) => {
-      queue.schedule(() => {
-        cardVisible[i] = true
-        cardVisible = [...cardVisible]
-      }, cardsStart + i * CARD_STAGGER)
+      queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, cardsStart + i * CARD_STAGGER)
     })
 
-    // Gate popup until the last entrance transition finishes
     const lastStart = cardsStart + (techCards.length - 1) * CARD_STAGGER
     queue.schedule(() => { popupEnabled = true }, lastStart + ENTRANCE_TRANSITION)
   }
@@ -68,29 +56,20 @@
     requestAnimationFrame(() => container?.classList.remove('no-transition'))
   }
 
-  // ─── Mouse tilt + popup ───────────────────────────────────────────────────────
-
   const tiltHandler = createCardTiltHandler(() => cardEls, { maxRot: 18 })
 
   function onMouseMove(e: MouseEvent): void {
-    cursorX = e.clientX
-    cursorY = e.clientY
+    cursorX = e.clientX; cursorY = e.clientY
     tiltHandler(e)
   }
 
   function onCardEnter(i: number): void {
     if (!popupEnabled) return
     hoveredIndex = i
-    popupX = cursorX
-    popupY = cursorY
   }
-
   function onCardLeave(): void { hoveredIndex = null }
 
-  // Popup RAF loop state (needed to snap position on first hover)
-  let popupX = 0, popupY = 0
-
-  // ─── Lifecycle ───────────────────────────────────────────────────────────────
+  $: activeCard = hoveredIndex !== null ? techCards[hoveredIndex] : null
 
   let stopPopup:    () => void
   let stopObserver: () => void
@@ -102,41 +81,31 @@
       () => hoveredIndex !== null,
       () => hoveredIndex !== null ? (techCards[hoveredIndex]?.accent2 ?? null) : null,
     )
-
-    stopObserver = observeSection(
-      findSnapSection(container),
-      playAnimation,
-      hideImmediately,
-    )
-
+    stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
     window.addEventListener('mousemove', onMouseMove)
-
-    return (): void => {
-      queue.clear()
-      stopPopup()
-      stopObserver()
+    return () => {
+      queue.clear(); stopPopup(); stopObserver()
       window.removeEventListener('mousemove', onMouseMove)
     }
   })
 
   onDestroy(() => {
     if (!browser) return
-    queue.clear()
-    stopPopup?.()
+    queue.clear(); stopPopup?.()
   })
-
-  $: activeCard = hoveredIndex !== null ? techCards[hoveredIndex] : null
 </script>
 
+<!-- STRUCTURE -->
 <div class="stack" bind:this={container}>
 
-  <header class="section-header">
-    <span class="eyebrow" class:visible={eyebrowVisible}>технології</span>
-    <h2 class="section-title" class:visible={titleVisible}
-      style="--title-gradient: linear-gradient(135deg, #d0d0d0 0%, #fff1a0 45%, #c3a4c3 100%)">
-      Мій <em>стек</em>
-    </h2>
-  </header>
+  <SectionHeader
+    eyebrow="технології"
+    gradient="linear-gradient(135deg, #d0d0d0 0%, #fff1a0 45%, #c3a4c3 100%)"
+    visible={eyebrowVisible}
+    titleVisible={titleVisible}
+  >
+    Мій <em>стек</em>
+  </SectionHeader>
 
   <div class="stack__grid">
     {#each techCards as card, i (card.id)}
@@ -168,10 +137,6 @@
     {/each}
   </div>
 
-  <!--
-    Popup — all visual state driven by startPopupLoop RAF loop (position, opacity, tilt, blur).
-    Content is controlled by Svelte via activeCard.
-  -->
   <div class="popup" bind:this={popupEl} aria-hidden="true">
     {#if activeCard}
       <div class="popup__header">
@@ -185,8 +150,6 @@
 </div>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&family=Onest:wght@300;400;500&display=swap');
-  @import '$lib/styles/section-header.css';
   @import '$lib/styles/blob-card.css';
 
   .stack {
@@ -203,7 +166,6 @@
     font-family: 'Onest', sans-serif;
   }
 
-  /* ── Grid — 4 per row, square blobs ── */
   .stack__grid {
     display: flex;
     flex-wrap: wrap;
@@ -223,7 +185,6 @@
     aspect-ratio: 1;
   }
 
-  /* Gradient body (solid, not frosted) */
   .blob__body {
     background: radial-gradient(
       ellipse at 35% 28%,
@@ -266,7 +227,6 @@
   .blob:hover .blob__icon,
   .blob:focus-visible .blob__icon { transform: scale(1.15); }
 
-  /* ── Popup extras ── */
   .popup__header {
     display: flex;
     align-items: center;

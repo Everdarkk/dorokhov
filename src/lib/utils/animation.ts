@@ -62,6 +62,106 @@ export function observeSection(
   return () => observer.disconnect()
 }
 
+// ─── Section entrance controller ─────────────────────────────────────────────
+
+/**
+ * Encapsulates the shared entrance/exit pattern used by Stack, Showcase,
+ * and Contacts:
+ *
+ *   • Schedules staggered `cardVisible` flags
+ *   • Enables the popup only after all cards have finished entering
+ *   • Handles header (eyebrow + title) visibility
+ *   • Returns `popupEnabled` reactive flag via a getter
+ *
+ * @param items          - the data array being rendered
+ * @param queue          - the timeout queue for this component
+ * @param container      - the root element (for no-transition class)
+ * @param timings        - delay constants
+ * @param setState       - callback to update Svelte reactive state
+ *
+ * Usage:
+ *   const ctrl = createSectionController(items, queue, () => container, timings, (patch) => { ... })
+ *   ctrl.play()    // call from observeSection onEnter
+ *   ctrl.hide()    // call from observeSection onLeave
+ *   ctrl.popupEnabled  // read in onCardEnter guard
+ */
+export interface SectionTimings {
+  introDelay?:      number  // ms before eyebrow appears   (default 200)
+  titleDelay?:      number  // ms after introDelay for title (default 180)
+  cardsDelay?:      number  // ms after title for first card (default 460)
+  cardStagger?:     number  // ms between each card          (default 110)
+  entranceMs?:      number  // ms after last card before popup enabled (default 700)
+}
+
+export interface SectionState {
+  eyebrowVisible: boolean
+  titleVisible:   boolean
+  cardVisible:    boolean[]
+  popupEnabled:   boolean
+}
+
+export function createSectionController<T>(
+  items:        T[],
+  queue:        ReturnType<typeof createTimeoutQueue>,
+  getContainer: () => HTMLElement | undefined,
+  timings:      SectionTimings,
+  onStateChange: (patch: Partial<SectionState>) => void,
+) {
+  const {
+    introDelay  = 200,
+    titleDelay  = 180,
+    cardsDelay  = 460,
+    cardStagger = 110,
+    entranceMs  = 700,
+  } = timings
+
+  let _popupEnabled = false
+
+  function play(itemOverride?: T[]): void {
+    const list = itemOverride ?? items
+    queue.schedule(() => onStateChange({ eyebrowVisible: true }), introDelay)
+    queue.schedule(() => onStateChange({ titleVisible:   true }), introDelay + titleDelay)
+
+    const cardsStart = introDelay + titleDelay + cardsDelay
+    list.forEach((_, i) => {
+      queue.schedule(() => {
+        const next = new Array(list.length).fill(false)
+        // We set cards incrementally — consumer must merge, not replace
+        onStateChange({ _cardIndex: i } as never)
+      }, cardsStart + i * cardStagger)
+    })
+
+    const lastStart = cardsStart + (list.length - 1) * cardStagger
+    queue.schedule(() => {
+      _popupEnabled = true
+      onStateChange({ popupEnabled: true })
+    }, lastStart + entranceMs)
+  }
+
+  function hide(itemOverride?: T[]): void {
+    const list = itemOverride ?? items
+    queue.clear()
+    _popupEnabled = false
+    const el = getContainer()
+    if (el) {
+      el.classList.add('no-transition')
+      requestAnimationFrame(() => el.classList.remove('no-transition'))
+    }
+    onStateChange({
+      eyebrowVisible: false,
+      titleVisible:   false,
+      cardVisible:    list.map(() => false),
+      popupEnabled:   false,
+    })
+  }
+
+  return {
+    get popupEnabled(): boolean { return _popupEnabled },
+    play,
+    hide,
+  }
+}
+
 // ─── Blob SVG mask ────────────────────────────────────────────────────────────
 
 type PointList = readonly number[]

@@ -10,44 +10,30 @@
     createCardTiltHandler,
     resetCardTilts,
     startBlobMaskAnimation,
-    easeInOut,
-    lerp,
-    BLOB_SHAPES,
-    pointsToPath,
   } from '$lib/utils/animation'
+  import SectionHeader from '$lib/components/SectionHeader.svelte'
 
-  // ─── Animation timing ────────────────────────────────────────────────────────
+  const INTRO_DELAY  = 200
+  const TITLE_DELAY  = 180
+  const CARDS_DELAY  = 480
+  const CARD_STAGGER = 140
 
-  const INTRO_DELAY    = 200
-  const TITLE_DELAY    = 180
-  const CARDS_DELAY    = 480
-  const CARD_STAGGER   = 140
+  let eyebrowVisible         = false
+  let titleVisible           = false
+  let cardVisible: boolean[] = cards.map(() => false)
 
-  // ─── State ───────────────────────────────────────────────────────────────────
-
-  let eyebrowVisible            = false
-  let titleVisible              = false
-  let cardVisible: boolean[]    = cards.map(() => false)
-
-  // DOM refs
   let container:  HTMLDivElement
-  let cardEls:    HTMLElement[]          = []
-  let clipPathEl: SVGPathElement | null  = null
+  let cardEls:    HTMLElement[]         = []
+  let clipPathEl: SVGPathElement | null = null
 
   const queue = createTimeoutQueue()
-
-  // ─── Entrance / exit ─────────────────────────────────────────────────────────
 
   function playAnimation(): void {
     queue.schedule(() => { eyebrowVisible = true }, INTRO_DELAY)
     queue.schedule(() => { titleVisible   = true }, INTRO_DELAY + TITLE_DELAY)
-
-    const cardsStart = INTRO_DELAY + TITLE_DELAY + CARDS_DELAY
+    const start = INTRO_DELAY + TITLE_DELAY + CARDS_DELAY
     cards.forEach((_, i) => {
-      queue.schedule(() => {
-        cardVisible[i] = true
-        cardVisible = [...cardVisible]
-      }, cardsStart + i * CARD_STAGGER)
+      queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, start + i * CARD_STAGGER)
     })
   }
 
@@ -61,48 +47,37 @@
     requestAnimationFrame(() => container?.classList.remove('no-transition'))
   }
 
-  // ─── Mask + mouse tilt ───────────────────────────────────────────────────────
-
   const onMouseMove = createCardTiltHandler(() => cardEls, { maxRot: 20, maxScale: 0.07, maxTx: 0.07 })
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────────
-
-  let stopMask:    () => void
+  let stopMask:     () => void
   let stopObserver: () => void
 
   onMount(() => {
     stopMask     = startBlobMaskAnimation(() => [clipPathEl])
-    stopObserver = observeSection(
-      findSnapSection(container),
-      playAnimation,
-      hideImmediately,
-    )
+    stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
     window.addEventListener('mousemove', onMouseMove)
-
-    return (): void => {
-      queue.clear()
-      stopMask()
-      stopObserver()
+    return () => {
+      queue.clear(); stopMask(); stopObserver()
       window.removeEventListener('mousemove', onMouseMove)
     }
   })
 
   onDestroy(() => {
     if (!browser) return
-    queue.clear()
-    stopMask?.()
+    queue.clear(); stopMask?.()
   })
 </script>
 
 <div class="about" bind:this={container}>
 
-  <header class="section-header">
-    <span class="eyebrow" class:visible={eyebrowVisible}>про мене</span>
-    <h2 class="section-title" class:visible={titleVisible}
-      style="--title-gradient: linear-gradient(135deg, #e2103a 0%, #ff6b6b 50%, #c2002a 100%)">
-      Олександр<br /><em>Веб-розробник</em>
-    </h2>
-  </header>
+  <SectionHeader
+    eyebrow="про мене"
+    gradient="linear-gradient(135deg, #e2103a 0%, #ff6b6b 50%, #c2002a 100%)"
+    visible={eyebrowVisible}
+    titleVisible={titleVisible}
+  >
+    Олександр<br /><em>Веб-розробник</em>
+  </SectionHeader>
 
   <div class="about__grid">
     {#each cards as card, i (card.id)}
@@ -126,7 +101,6 @@
 
         <div class="blob__inner">
           {#if card.type === 'photo'}
-            <!-- Hidden SVG registers animated clip-path for photo mask -->
             <svg class="blob__mask-svg" aria-hidden="true">
               <defs>
                 <clipPath id="photo-blob-clip" clipPathUnits="objectBoundingBox">
@@ -135,7 +109,6 @@
               </defs>
             </svg>
             <img class="blob__photo" src={photo} alt="Фото Олександра" loading="lazy" />
-
           {:else}
             {#if card.title}
               <h3 class="blob__title">{card.title}</h3>
@@ -159,8 +132,6 @@
 </div>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&family=Onest:wght@300;400;500&display=swap');
-  @import '$lib/styles/section-header.css';
   @import '$lib/styles/blob-card.css';
 
   .about {
@@ -176,7 +147,6 @@
     z-index: 10;
   }
 
-  /* ── Grid ── */
   .about__grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -189,7 +159,6 @@
     min-height: 0;
   }
 
-  /* ── Card inner ── */
   .blob__inner {
     display: flex;
     flex-direction: column;
@@ -200,7 +169,6 @@
     box-sizing: border-box;
   }
 
-  /* After entrance: fast transform for mouse tilt */
   .blob--visible {
     transition:
       opacity   0.7s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -239,7 +207,6 @@
     opacity: 0.85;
   }
 
-  /* Photo card */
   .blob--photo .blob__inner { padding: 0; position: relative; }
 
   .blob__mask-svg { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
@@ -253,7 +220,6 @@
     clip-path: url(#photo-blob-clip);
   }
 
-  /* ── Hover: glow ring ── */
   .blob:hover .blob__body { box-shadow: 0 0 70px 12px color-mix(in srgb, var(--accent2) 55%, transparent 45%); }
 
   @media (max-width: 640px) {
