@@ -151,6 +151,7 @@
 
   .about__grid {
     display: grid;
+    place-content: center;
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
     gap: 1.2rem;
@@ -224,13 +225,54 @@
 
   .blob:hover .blob__body { box-shadow: 0 0 70px 12px color-mix(in srgb, var(--accent2) 55%, transparent 45%); }
 
+  @media (max-height: 1000px) {
+    .about__grid {
+      place-items: center;
+      height: fit-content;
+    }
+    .blob__body, .blob__ring, .blob__inner, .blob {
+      height: clamp(16rem, 15vw, 23rem); width: clamp(20rem, 25vw, 26rem);
+    }
+
+    .blob__inner {
+      gap: 0.5rem;
+    }
+    .blob__title {
+      font-size: 1rem;
+    }
+    .blob__line {
+      font-size: 0.8rem;
+    }
+
+    .blob__photo {
+      object-position: center;
+    }
+  }
+
   @media (max-width: 800px) {
     .about { padding: 3rem 0.85rem 0.85rem; gap: 0.65rem; }
-    .about__grid { gap: 0.6rem; }
-    .blob__inner { padding: 0.8rem 0.9rem; gap: 1.2rem }
+    .about__grid { 
+      gap: 0.6rem; 
+      place-content: center;
+      place-items: center;
+    }
+
+    .blob {
+      height: clamp(20rem, 20vw, 30rem); width: clamp(20rem, 20vw, 30rem);
+    }
+    .blob__inner { 
+      padding: 0.8rem 0.9rem; 
+      gap: 1.2rem; 
+      height: clamp(20rem, 20vw, 30rem); width: clamp(20rem, 20vw, 30rem); 
+      align-self: center;
+    }
     .blob__title { font-size: clamp(0.85rem, 3.5vw, 1.1rem); text-align: center; }
     .blob__line  { font-size: clamp(0.72rem, 2.8vw, 0.9rem); }
     .blob__line-icon { width: 1em; height: 1em; }
+
+    .blob__body, .blob__ring {
+      height: clamp(20rem, 20vw, 30rem); width: clamp(20rem, 20vw, 30rem);
+    }
   }
 
   @media (max-width: 380px) {

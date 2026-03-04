@@ -163,7 +163,7 @@
   .dot:focus-visible .label { opacity: 1; transform: translateX(0); }
   .dot.active .label         { opacity: 0.55; transform: translateX(0); }
 
-  @media (max-width: 800px) {
+  @media (max-width: 1024px) {
     .section-nav {
       left: 12px;
       gap: 14px;
