@@ -409,6 +409,7 @@
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
     max-width: 360px;
+    overflow: visible;
   }
 
   /* ── Base blob transition (shared) ── */
@@ -503,5 +504,15 @@
     .blob__video { opacity: 0.7; }
     /* Prevent overflow during slide animations */
     .showcase__grid--mobile { overflow: hidden; }
+  }
+
+  @media (max-width: 450px) {
+    .blob, .blob__body,.blob__ring, .blob__inner {
+      height: 90%;
+      align-self: center;
+    }
+
+
+    
   }
 </style>

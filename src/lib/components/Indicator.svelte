@@ -164,7 +164,7 @@
   /* ─── Last section: slightly slower for "end of journey" feel ──────────── */
   .is-last .arrow { animation-duration: 2.6s !important; }
 
-  @media (max-height: 900px) {
+  @media (max-height: 850px) {
     .indicator { left: 3rem; }
 
     .arrow {
