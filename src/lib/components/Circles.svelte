@@ -170,4 +170,12 @@
     }
     .label { display: none; }
   }
+
+  @media (max-width: 450px) {
+    .section-nav {
+      left: 12px;
+      top: 5rem;
+    }
+    .label { display: none; }
+  }
 </style>

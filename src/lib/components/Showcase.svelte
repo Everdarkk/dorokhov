@@ -350,13 +350,13 @@
     height: 100dvh;
     display: grid;
     grid-template-rows: auto auto 1fr;
-    padding: 3.5rem 2rem 1.5rem;
+    padding: 2rem 2rem 1.5rem;
     box-sizing: border-box;
     gap: 0.6rem;
     overflow: hidden;
     position: relative;
     z-index: 10;
-    font-family: 'Onest', sans-serif;
+    font-family: 'ICTV', sans-serif;
     user-select: none;
   }
 
@@ -491,7 +491,7 @@
 
     /* Mobile: full single-card view */
   @media (max-width: 800px) {
-    .showcase { padding: 3rem 0.85rem 0.85rem; gap: 0.4rem; }
+    .showcase { padding: 0.85rem 0.85rem; gap: 0.4rem; }
     .showcase__grid { gap: 0.7rem; }
     .showcase__grid--mobile {
       max-width: min(440px, calc(100vw - 1.7rem));

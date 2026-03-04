@@ -166,13 +166,13 @@
     height: 100dvh;
     display: grid;
     grid-template-rows: auto 1fr;
-    padding: 3.5rem 2rem 2rem;
+    padding: 2rem 2rem 2rem;
     box-sizing: border-box;
     gap: 1.5rem;
     overflow: hidden;
     position: relative;
     z-index: 10;
-    font-family: 'Onest', sans-serif;
+    font-family: 'ICTV', sans-serif;
   }
 
   .contacts__grid {
@@ -247,7 +247,7 @@
   .popup__summary { opacity: 0.65; }
 
   @media (max-width: 800px) {
-    .contacts { padding: 3rem 0.85rem 0.85rem; gap: 0.65rem; }
+    .contacts { padding: 0.85rem 0.85rem; gap: 0.65rem; }
 
     /* 2-column x 3-row grid */
     .contacts__grid {

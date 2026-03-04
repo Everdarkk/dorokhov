@@ -141,7 +141,7 @@
     height: 100dvh;
     display: grid;
     grid-template-rows: auto 1fr;
-    padding: 3.5rem 2rem 2rem;
+    padding: 2rem 2rem 2rem;
     box-sizing: border-box;
     gap: 1.5rem;
     overflow: hidden;
@@ -227,11 +227,12 @@
 
   @media (max-height: 1000px) {
     .about__grid {
+      place-self: center; /* Vertical allign self*/
       place-items: center;
       height: fit-content;
     }
     .blob__body, .blob__ring, .blob__inner, .blob {
-      height: clamp(16rem, 15vw, 23rem); width: clamp(20rem, 25vw, 26rem);
+      height: clamp(18rem, 10vw, 23rem); width: clamp(20rem, 25vw, 26rem);
     }
 
     .blob__inner {
@@ -250,11 +251,12 @@
   }
 
   @media (max-width: 800px) {
-    .about { padding: 3rem 0.85rem 0.85rem; gap: 0.65rem; }
+    .about { padding: 0.85rem 0.85rem; gap: 0.65rem; }
     .about__grid { 
       gap: 0.6rem; 
       place-content: center;
       place-items: center;
+      place-self: center; /* Vertical allign self*/
     }
 
     .blob {
@@ -275,7 +277,43 @@
     }
   }
 
-  @media (max-width: 380px) {
-    .about__grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, auto); }
+  @media (max-width: 480px) {
+    .about {
+      padding-top: 1rem;
+    }
+    .about__grid {
+      place-items: center;
+      height: fit-content;
+    }
+    .blob__body, .blob__ring, .blob__inner, .blob {
+      height: clamp(15rem, 15vw, 25rem); width: clamp(10.5rem, 15vw, 15rem);
+    }
+
+    .blob__inner {
+      gap: 0.3rem;
+    }
+    .blob__title {
+      font-size: 0.8rem;
+    }
+    .blob__line {
+      font-size: 0.5rem;
+    }
+  }
+
+
+  @media (max-width: 360px) {
+    .blob__body, .blob__ring, .blob__inner, .blob {
+      height: clamp(14rem, 13vw, 20rem); width: clamp(9rem, 10vw, 15rem);
+    }
+
+    .blob__inner {
+      gap: 0.2rem;
+    }
+    .blob__title {
+      font-size: 0.8rem;
+    }
+    .blob__line {
+      font-size: 0.5rem;
+    }
   }
 </style>

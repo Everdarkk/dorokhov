@@ -164,6 +164,17 @@
   /* ─── Last section: slightly slower for "end of journey" feel ──────────── */
   .is-last .arrow { animation-duration: 2.6s !important; }
 
+  @media (max-height: 900px) {
+    .indicator { left: 3rem; }
+
+    .arrow {
+      width: calc(var(--size) * 0.82);
+      height: calc(var(--size) * 0.82 * 0.58);
+    }
+
+    .pair { gap: 12px; }
+  }
+
   /* ─── Mobile ── */
   @media (max-width: 480px) {
     .indicator { bottom: 0.9rem; }

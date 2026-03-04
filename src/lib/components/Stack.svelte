@@ -159,13 +159,13 @@
     height: 100dvh;
     display: grid;
     grid-template-rows: auto 1fr;
-    padding: 3.5rem 2rem 2rem;
+    padding: 2rem 2rem 2rem;
     box-sizing: border-box;
     gap: 1.5rem;
     overflow: hidden;
     position: relative;
     z-index: 10;
-    font-family: 'Onest', sans-serif;
+    font-family: 'ICTV', sans-serif;
   }
 
   .stack__grid {
@@ -244,7 +244,7 @@
   }
 
   @media (max-width: 800px) {
-    .stack { padding: 3rem 0.85rem 0.85rem; gap: 0.75rem; }
+    .stack { padding: 0.85rem 0.85rem; gap: 0.75rem; }
     .stack__grid { gap: 0.6rem; }
     .blob { flex: 0 0 clamp(90px, 26vw, 140px); }
   }
