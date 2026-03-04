@@ -33,6 +33,8 @@
   })
 </script>
 
+
+<!-- STRUCTURE -->
 <section
   class="snap-section"
   class:effect-blink={effect === 'blink'}

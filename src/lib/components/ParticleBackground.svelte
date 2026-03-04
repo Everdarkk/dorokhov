@@ -286,6 +286,7 @@
   })
 </script>
 
+<!-- STRUCTURE -->
 <div
   class="particle-bg"
   class:visible

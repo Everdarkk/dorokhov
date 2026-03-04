@@ -54,6 +54,7 @@
   })
 </script>
 
+<!-- STRUCTURE -->
 <nav
   class="section-nav"
   class:visible

@@ -21,6 +21,7 @@
   })
 </script>
 
+<!-- STRUCTURE -->
 <div
   class="indicator"
   class:visible

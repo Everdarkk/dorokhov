@@ -23,6 +23,7 @@
   export let titleVisible:  boolean         = false
 </script>
 
+<!-- STRUCTURE -->
 <header class="section-header">
   <span
     class="eyebrow"

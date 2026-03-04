@@ -5,18 +5,14 @@
   import {
     findSnapSection,
     observeSection,
-    createTimeoutQueue,
     createCardTiltHandler,
     resetCardTilts,
     startPopupLoop,
   } from '$lib/utils/animation'
+  import { sectionAnimation } from '$lib/utils/sectionAnimation'
   import SectionHeader from '$lib/components/SectionHeader.svelte'
 
-  const INTRO_DELAY         = 200
-  const TITLE_DELAY         = 180
-  const CARDS_DELAY         = 460
-  const CARD_STAGGER        = 100
-  const ENTRANCE_TRANSITION = 700
+  // ─── Reactive state ───────────────────────────────────────────────────────
 
   let eyebrowVisible         = false
   let titleVisible           = false
@@ -25,36 +21,29 @@
   let hoveredIndex: number | null = null
   let cursorX = 0, cursorY = 0
 
+  // ─── DOM refs ──────────────────────────────────────────────────────────────
+
   let container: HTMLDivElement
   let cardEls:   HTMLElement[]  = []
   let popupEl:   HTMLDivElement
 
-  const queue = createTimeoutQueue()
+  // ─── Animation composable ─────────────────────────────────────────────────
 
-  function playAnimation(): void {
-    queue.schedule(() => { eyebrowVisible = true }, INTRO_DELAY)
-    queue.schedule(() => { titleVisible   = true }, INTRO_DELAY + TITLE_DELAY)
+  const anim = sectionAnimation(
+    techCards,
+    { introDelay: 200, titleDelay: 180, cardsDelay: 460, cardStagger: 100, entranceMs: 700 },
+    (s) => {
+      eyebrowVisible = s.eyebrowVisible
+      titleVisible   = s.titleVisible
+      cardVisible    = s.cardVisible
+      popupEnabled   = s.popupEnabled
+    },
+  )
 
-    const cardsStart = INTRO_DELAY + TITLE_DELAY + CARDS_DELAY
-    techCards.forEach((_, i) => {
-      queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, cardsStart + i * CARD_STAGGER)
-    })
+  const playAnimation  = () => anim.play()
+  const hideImmediately = () => { anim.hide(techCards.length, container); hoveredIndex = null; resetCardTilts(cardEls) }
 
-    const lastStart = cardsStart + (techCards.length - 1) * CARD_STAGGER
-    queue.schedule(() => { popupEnabled = true }, lastStart + ENTRANCE_TRANSITION)
-  }
-
-  function hideImmediately(): void {
-    queue.clear()
-    container?.classList.add('no-transition')
-    eyebrowVisible = false
-    titleVisible   = false
-    cardVisible    = techCards.map(() => false)
-    hoveredIndex   = null
-    popupEnabled   = false
-    resetCardTilts(cardEls)
-    requestAnimationFrame(() => container?.classList.remove('no-transition'))
-  }
+  // ─── Card interactions ────────────────────────────────────────────────────
 
   const tiltHandler = createCardTiltHandler(() => cardEls, { maxRot: 18 })
 
@@ -63,13 +52,12 @@
     tiltHandler(e)
   }
 
-  function onCardEnter(i: number): void {
-    if (!popupEnabled) return
-    hoveredIndex = i
-  }
-  function onCardLeave(): void { hoveredIndex = null }
+  const onCardEnter = (i: number) => { if (!popupEnabled) return; hoveredIndex = i }
+  const onCardLeave = ()          => { hoveredIndex = null }
 
   $: activeCard = hoveredIndex !== null ? techCards[hoveredIndex] : null
+
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   let stopPopup:    () => void
   let stopObserver: () => void
@@ -86,14 +74,14 @@
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
     if (!isTouchDevice) window.addEventListener('mousemove', onMouseMove)
     return () => {
-      queue.clear(); stopPopup(); stopObserver()
+      anim.queue.clear(); stopPopup(); stopObserver()
       if (!isTouchDevice) window.removeEventListener('mousemove', onMouseMove)
     }
   })
 
   onDestroy(() => {
     if (!browser) return
-    queue.clear(); stopPopup?.()
+    anim.queue.clear(); stopPopup?.()
   })
 </script>
 
@@ -222,7 +210,7 @@
     width: 45%; height: 45%;
     object-fit: contain;
     display: block;
-    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
@@ -240,7 +228,7 @@
     width: 22px; height: 22px;
     object-fit: contain;
     flex-shrink: 0;
-    filter: drop-shadow(0 1px 4px rgba(0,0,0,0.4));
+    filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.4));
   }
 
   @media (max-width: 800px) {

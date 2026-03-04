@@ -5,127 +5,139 @@
   import {
     findSnapSection,
     observeSection,
-    createTimeoutQueue,
     createCardTiltHandler,
     resetCardTilts,
     startBlobMaskAnimation,
     startPopupLoop,
   } from '$lib/utils/animation'
+  import { sectionAnimation } from '$lib/utils/sectionAnimation'
   import SectionHeader from '$lib/components/SectionHeader.svelte'
+  import Pagination    from '$lib/components/Pagination.svelte'
+
+  // ─── Constants ────────────────────────────────────────────────────────────
 
   const PER_PAGE        = 4
   const PER_PAGE_MOBILE = 1
-  const INTRO_DELAY     = 200
-  const TITLE_DELAY     = 180
-  const CARDS_DELAY     = 460
   const CARD_STAGGER    = 120
   const ENTRANCE_MS     = 700
+  const SLIDE_OUT_MS    = 320
   const DRAG_THRESHOLD  = 60
+
+  // ─── Reactive state ───────────────────────────────────────────────────────
 
   let eyebrowVisible         = false
   let titleVisible           = false
   let cardVisible: boolean[] = []
   let popupEnabled           = false
-  let hintVisible            = false
   let hoveredIndex: number | null = null
 
   let isMobile    = false
   let currentPage = 0
   let pageDir: -1 | 1 = -1
-  let slideOut     = false  // true while old card is exiting
+  let slideOut    = false
 
   let cursorX = 0, cursorY = 0
 
+  // ─── DOM refs ──────────────────────────────────────────────────────────────
+
   let container:   HTMLDivElement
-  let cardEls:     HTMLElement[]              = []
+  let cardEls:     HTMLElement[]               = []
   let videoEls:    (HTMLVideoElement | null)[] = []
   let popupEl:     HTMLDivElement
-  let clipPathEls: (SVGPathElement | null)[]  = []
+  let clipPathEls: (SVGPathElement | null)[]   = []
 
-  const queue = createTimeoutQueue()
+  // ─── Derived (reactive) ───────────────────────────────────────────────────
 
-  $: perPage       = isMobile ? PER_PAGE_MOBILE : PER_PAGE
-  $: pageCount     = Math.ceil(projects.length / perPage)
-  $: pageProjects  = projects.slice(currentPage * perPage, currentPage * perPage + perPage)
+  $: perPage      = isMobile ? PER_PAGE_MOBILE : PER_PAGE
+  $: pageCount    = Math.ceil(projects.length / perPage)
+  $: pageProjects = projects.slice(currentPage * perPage, currentPage * perPage + perPage)
   $: activeProject = hoveredIndex !== null ? pageProjects[hoveredIndex] ?? null : null
 
-  const SLIDE_OUT_MS = 320
+  // ─── Animation composable ─────────────────────────────────────────────────
+
+  const anim = sectionAnimation(
+    projects,   // only used for default itemCount fallback
+    { introDelay: 200, titleDelay: 180, cardsDelay: 460, cardStagger: CARD_STAGGER, entranceMs: ENTRANCE_MS },
+    (s) => {
+      eyebrowVisible = s.eyebrowVisible
+      titleVisible   = s.titleVisible
+      cardVisible    = s.cardVisible
+      popupEnabled   = s.popupEnabled
+    },
+  )
+
+  // ─── Entrance / hide ──────────────────────────────────────────────────────
+
+  function schedulePageEntrance(): void {
+    // Use anim's queue directly so we share queue-clear semantics
+    const perPageCount = pageProjects.length
+
+    // Reset cards for new page
+    cardVisible = Array(perPageCount).fill(false)
+
+    for (let i = 0; i < perPageCount; i++) {
+      const idx = i
+      anim.queue.schedule(() => {
+        const next = [...cardVisible]
+        next[idx] = true
+        cardVisible = next
+      }, idx * CARD_STAGGER)
+    }
+
+    const lastMs = (perPageCount - 1) * CARD_STAGGER
+    anim.queue.schedule(() => {
+      popupEnabled = true
+      if (isTouchDevice) videoEls.forEach((v) => v?.play().catch(() => {}))
+    }, lastMs + ENTRANCE_MS)
+  }
+
+  function playAnimation(): void {
+    // Header via composable (introDelay + titleDelay built-in)
+    anim.play(pageProjects.length)
+    // Extra: touch devices autoplay after cards settle
+    if (isTouchDevice) {
+      const lastMs = 200 + 180 + 460 + (pageProjects.length - 1) * CARD_STAGGER + ENTRANCE_MS
+      anim.queue.schedule(() => {
+        videoEls.forEach((v) => v?.play().catch(() => {}))
+      }, lastMs)
+    }
+  }
+
+  function hideImmediately(): void {
+    anim.hide(pageProjects.length, container)
+    hoveredIndex = null
+    videoEls.forEach((v) => { if (v) { v.pause(); v.currentTime = 0 } })
+    resetCardTilts(cardEls)
+  }
+
+  // ─── Page navigation ──────────────────────────────────────────────────────
 
   function goToPage(idx: number): void {
     if (idx < 0 || idx >= pageCount || idx === currentPage) return
-    const dir: -1 | 1 = idx > currentPage ? -1 : 1
-    pageDir      = dir
+    pageDir      = idx > currentPage ? -1 : 1
     hoveredIndex = null
     popupEnabled = false
 
     if (isMobile) {
-      // Pause current video before sliding out
       videoEls.forEach((v) => { if (v) { v.pause(); v.currentTime = 0 } })
-      // Trigger slide-out, then swap page and slide in
       slideOut = true
-      queue.schedule(() => {
+      anim.queue.clear()
+      anim.queue.schedule(() => {
         slideOut    = false
         currentPage = idx
-        cardVisible = pageProjects.map(() => false)
         schedulePageEntrance()
       }, SLIDE_OUT_MS)
     } else {
+      anim.queue.clear()
       currentPage = idx
-      requestAnimationFrame(() => {
-        cardVisible = pageProjects.map(() => false)
-        schedulePageEntrance()
-      })
+      requestAnimationFrame(() => schedulePageEntrance())
     }
   }
 
   const nextPage = () => goToPage(currentPage + 1)
   const prevPage = () => goToPage(currentPage - 1)
 
-  function schedulePageEntrance(): void {
-    pageProjects.forEach((_, i) => {
-      queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, i * CARD_STAGGER)
-    })
-    const lastStart = (pageProjects.length - 1) * CARD_STAGGER
-    queue.schedule(() => {
-      popupEnabled = true
-      // On touch devices autoplay since there's no hover
-      if (isTouchDevice) {
-        videoEls.forEach((v) => v?.play().catch(() => {}))
-      }
-    }, lastStart + ENTRANCE_MS)
-  }
-
-  function playAnimation(): void {
-    queue.schedule(() => { eyebrowVisible = true }, INTRO_DELAY)
-    queue.schedule(() => { hintVisible    = true }, INTRO_DELAY + 800)
-    queue.schedule(() => { titleVisible   = true }, INTRO_DELAY + TITLE_DELAY)
-
-    const cardsStart = INTRO_DELAY + TITLE_DELAY + CARDS_DELAY
-    pageProjects.forEach((_, i) => {
-      queue.schedule(() => { cardVisible[i] = true; cardVisible = [...cardVisible] }, cardsStart + i * CARD_STAGGER)
-    })
-    const lastStart = cardsStart + (pageProjects.length - 1) * CARD_STAGGER
-    queue.schedule(() => {
-      popupEnabled = true
-      if (isTouchDevice) {
-        videoEls.forEach((v) => v?.play().catch(() => {}))
-      }
-    }, lastStart + ENTRANCE_MS)
-  }
-
-  function hideImmediately(): void {
-    queue.clear()
-    container?.classList.add('no-transition')
-    eyebrowVisible = false
-    titleVisible   = false
-    cardVisible    = pageProjects.map(() => false)
-    hoveredIndex   = null
-    popupEnabled   = false
-    hintVisible    = false
-    videoEls.forEach((v) => { if (v) { v.pause(); v.currentTime = 0 } })
-    resetCardTilts(cardEls)
-    requestAnimationFrame(() => container?.classList.remove('no-transition'))
-  }
+  // ─── Card interactions ────────────────────────────────────────────────────
 
   const tiltHandler = createCardTiltHandler(() => cardEls, { maxRot: 18 })
 
@@ -146,13 +158,15 @@
     if (v) { v.pause(); v.currentTime = 0 }
   }
 
+  // ─── Drag / touch ─────────────────────────────────────────────────────────
+
   let isDragging    = false
   let dragStartX    = 0
   let dragCurrentX  = 0
   let dragDidChange = false
 
   function onGridPointerDown(e: PointerEvent): void {
-    if ((e.target as HTMLElement).closest('.pagination')) return
+    if ((e.target as HTMLElement).closest('nav')) return
     if (e.button !== 0 && e.pointerType === 'mouse') return
     isDragging = true; dragDidChange = false
     dragStartX = e.clientX; dragCurrentX = e.clientX
@@ -167,7 +181,7 @@
     isDragging = false
     const delta = dragCurrentX - dragStartX
     if (Math.abs(delta) > DRAG_THRESHOLD) {
-      dragDidChange = true; hintVisible = false
+      dragDidChange = true
       delta < 0 ? nextPage() : prevPage()
     } else {
       dragDidChange = false
@@ -185,15 +199,19 @@
     if (Math.abs(delta) > 50) delta < 0 ? nextPage() : prevPage()
   }
 
+  // ─── Responsive ───────────────────────────────────────────────────────────
+
   function checkMobile(): void {
     const was = isMobile
-    isMobile = window.innerWidth < 800
+    isMobile   = window.innerWidth < 800
     if (was !== isMobile) {
       currentPage = 0
-      cardVisible = pageProjects.map(() => false)
+      anim.queue.clear()
       schedulePageEntrance()
     }
   }
+
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   let stopMask:     () => void
   let stopPopup:    () => void
@@ -203,24 +221,27 @@
   onMount(() => {
     isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     checkMobile()
-    stopMask  = startBlobMaskAnimation(() => clipPathEls)
-    if (!isTouchDevice) {
-      stopPopup = startPopupLoop(
-        () => popupEl,
-        () => ({ x: cursorX, y: cursorY }),
-        () => hoveredIndex !== null,
-        () => hoveredIndex !== null ? (pageProjects[hoveredIndex]?.accent2 ?? null) : null,
-      )
-    } else {
-      stopPopup = () => {}
-    }
+
+    stopMask = startBlobMaskAnimation(() => clipPathEls)
+
+    stopPopup = isTouchDevice
+      ? () => {}
+      : startPopupLoop(
+          () => popupEl,
+          () => ({ x: cursorX, y: cursorY }),
+          () => hoveredIndex !== null,
+          () => hoveredIndex !== null ? (pageProjects[hoveredIndex]?.accent2 ?? null) : null,
+        )
+
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
+
     if (!isTouchDevice) window.addEventListener('mousemove',   onMouseMove)
     window.addEventListener('resize',      checkMobile)
     window.addEventListener('pointermove', onWindowPointerMove)
     window.addEventListener('pointerup',   onWindowPointerUp)
+
     return () => {
-      queue.clear(); stopMask(); stopPopup(); stopObserver()
+      anim.queue.clear(); stopMask(); stopPopup(); stopObserver()
       if (!isTouchDevice) window.removeEventListener('mousemove',   onMouseMove)
       window.removeEventListener('resize',      checkMobile)
       window.removeEventListener('pointermove', onWindowPointerMove)
@@ -230,7 +251,7 @@
 
   onDestroy(() => {
     if (!browser) return
-    queue.clear(); stopMask?.(); stopPopup?.()
+    anim.queue.clear(); stopMask?.(); stopPopup?.()
   })
 </script>
 
@@ -244,9 +265,9 @@
 
   <SectionHeader
     eyebrow="портфоліо"
-    eyebrowColor='#171717'
-    eyebrowBorder='#171717'
-    titleColor='#171717'
+    eyebrowColor="#171717"
+    eyebrowBorder="#171717"
+    titleColor="#171717"
     gradient="linear-gradient(90deg, #fcff9e 0%, #c67700 100%)"
     visible={eyebrowVisible}
     titleVisible={titleVisible}
@@ -254,21 +275,14 @@
     Мої <em>роботи</em>
   </SectionHeader>
 
-  <!-- Pagination sits directly under the header, centered -->
-  {#if pageCount > 1}
-    <nav class="pagination" aria-label="Сторінки проєктів">
-      {#each { length: pageCount } as _, i}
-        <button
-          class="pagination__dot"
-          class:pagination__dot--active={i === currentPage}
-          on:click={() => { goToPage(i); hintVisible = false }}
-          aria-label="Сторінка {i + 1}"
-          aria-current={i === currentPage ? 'page' : undefined}
-        ></button>
-      {/each}
-    </nav>
-  {/if}
+  <!-- Pagination — shared component, always visible when pageCount > 1 -->
+  <Pagination
+    count={pageCount}
+    current={currentPage}
+    on:change={(e) => goToPage(e.detail)}
+  />
 
+  <!-- Card grid -->
   <div
     class="showcase__grid"
     class:showcase__grid--mobile={isMobile}
@@ -288,6 +302,7 @@
         aria-label={project.name}
         class:blob--visible={cardVisible[i]}
         class:blob--slide-out={slideOut && isMobile}
+        class:blob--mobile={isMobile}
         bind:this={cardEls[i]}
         style="
           --accent1: {project.accent1}; --accent2: {project.accent2};
@@ -328,6 +343,7 @@
     {/each}
   </div>
 
+  <!-- Popup tooltip (desktop only) -->
   <div class="popup" bind:this={popupEl} aria-hidden="true">
     {#if activeProject}
       <p class="popup__name">{activeProject.name}</p>
@@ -345,10 +361,12 @@
 <style>
   @import '$lib/styles/blob-card.css';
 
+  /* ── Section wrapper ─────────────────────────────────────────────────────── */
   .showcase {
     width: 100%;
     height: 100dvh;
     display: grid;
+    /* rows: header | pagination | grid */
     grid-template-rows: auto auto 1fr;
     padding: 2rem 2rem 1.5rem;
     box-sizing: border-box;
@@ -360,39 +378,7 @@
     user-select: none;
   }
 
-  /* ── Pagination — horizontal row under header ── */
-  .pagination {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 0.55rem;
-    padding: 0.45rem 0.9rem;
-    background: rgba(0, 0, 0, 0.06);
-    backdrop-filter: blur(8px);
-    border-radius: 100px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    /* self-center so it doesn't stretch full width */
-    justify-self: center;
-    z-index: 20;
-  }
-
-  .pagination__dot {
-    appearance: none; border: none; padding: 0;
-    background: rgba(0, 0, 0, 0.22);
-    border-radius: 50%;
-    width: 7px; height: 7px;
-    cursor: pointer;
-    transition:
-      background  0.25s ease,
-      transform   0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-      width       0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  .pagination__dot:hover { background: rgba(0, 0, 0, 0.5); transform: scale(1.3); }
-  .pagination__dot--active { background: #171717; width: 22px; border-radius: 100px; transform: none; }
-
-  /* ── Grid ── */
+  /* ── Desktop grid: 2×2 ───────────────────────────────────────────────────── */
   .showcase__grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -405,30 +391,32 @@
     min-height: 0;
   }
 
+  /* ── Mobile grid: single card ────────────────────────────────────────────── */
   .showcase__grid--mobile {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
-    max-width: 360px;
-    overflow: visible;
+    max-width: min(440px, calc(100vw - 1.7rem));
   }
 
-  /* ── Base blob transition (shared) ── */
+  /* ── Blob base transition ────────────────────────────────────────────────── */
   .showcase__grid .blob {
-    cursor: pointer; min-height: 0; z-index: 999;
+    cursor: pointer;
+    min-height: 0;
+    z-index: 999;
     transition:
       opacity   0.55s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
       filter    0.45s ease;
   }
 
-  /* ── Desktop enter: scale+slide from slide direction ── */
+  /* Hidden (before blob--visible) ── */
   .showcase__grid .blob:not(.blob--visible):not(.blob--slide-out) {
     opacity: 0;
     transform: scale(0.82) translateX(calc(var(--slide-dir, -1) * -60px));
     filter: blur(4px);
   }
 
-  /* ── Mobile slide-out: card exits in the nav direction ── */
+  /* Mobile slide-out ── */
   .showcase__grid--mobile .blob.blob--slide-out {
     opacity: 0;
     transform: scale(0.82) translateX(calc(var(--slide-dir, -1) * 90px));
@@ -440,8 +428,10 @@
     pointer-events: none;
   }
 
+  /* ── Blob body (glassmorphism for showcase) ──────────────────────────────── */
+
   .blob__body {
-    background: rgba(255,255,255,0.06);
+    background: rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(12px) saturate(1.4);
     -webkit-backdrop-filter: blur(12px) saturate(1.4);
     transition: border-radius 0.9s ease, box-shadow 0.3s ease, background 0.35s ease;
@@ -449,27 +439,43 @@
 
   .blob:hover .blob__body,
   .blob:focus-visible .blob__body {
-    background: rgba(255,255,255,0.10);
+    background: rgba(255, 255, 255, 0.10);
     box-shadow:
       0 0 40px 8px color-mix(in srgb, var(--accent2) 30%, transparent 70%),
-      inset 0 1px 0 rgba(255,255,255,0.18);
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
+  /* ── Blob ring ───────────────────────────────────────────────────────────── */
   .blob__ring {
     inset: 0;
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.18),
-      inset 0 1px 0 rgba(255,255,255,0.28);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
     z-index: 3;
   }
 
-  .blob__mask-svg { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+  /* ── SVG clip mask ───────────────────────────────────────────────────────── */
+  .blob__mask-svg {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
 
-  .blob__inner--video { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
+  /* ── Video layer ─────────────────────────────────────────────────────────── */
+  .blob__inner--video {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+  }
 
   .blob__video {
     position: absolute;
-    inset: 0; width: 100%; height: 100%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     display: block;
     opacity: 0.45;
@@ -479,40 +485,44 @@
   .blob:hover .blob__video,
   .blob:focus-visible .blob__video { opacity: 0.85; }
 
+  /* ── Popup ───────────────────────────────────────────────────────────────── */
   .popup__summary { margin-bottom: 0.6rem; }
-  .popup__tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.55rem; }
 
-  .popup__tag {
-    font-size: 0.65rem; font-weight: 500; letter-spacing: 0.06em;
-    padding: 0.2em 0.65em; border-radius: 100px;
-    background: color-mix(in srgb, var(--pop-accent, #fff) 18%, transparent 82%);
-    border: 1px solid color-mix(in srgb, var(--pop-accent, #fff) 35%, transparent 65%);
-    color: rgba(255,255,255,0.85);
+  .popup__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.55rem;
   }
 
-    /* Mobile: full single-card view */
+  .popup__tag {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.2em 0.65em;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--pop-accent, #fff) 18%, transparent 82%);
+    border: 1px solid color-mix(in srgb, var(--pop-accent, #fff) 35%, transparent 65%);
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  /* ── Mobile overrides ────────────────────────────────────────────────────── */
   @media (max-width: 800px) {
     .showcase { padding: 0.85rem 0.85rem; gap: 0.4rem; }
     .showcase__grid { gap: 0.7rem; }
-    .showcase__grid--mobile {
-      max-width: min(440px, calc(100vw - 1.7rem));
-    }
-    .pagination { gap: 0.4rem; padding: 0.35rem 0.7rem; }
-    .pagination__dot { width: 6px; height: 6px; }
-    .pagination__dot--active { width: 18px; }
-    /* Show video more prominently on mobile (no hover) */
+    .showcase__grid--mobile { max-width: min(440px, calc(100vw - 1.7rem)); }
+    /* Slightly more visible video on touch (no hover) */
     .blob__video { opacity: 0.7; }
-    /* Prevent overflow during slide animations */
-    .showcase__grid--mobile { overflow: hidden; }
+
   }
 
   @media (max-width: 450px) {
-    .blob, .blob__body,.blob__ring, .blob__inner {
+    .blob,
+    .blob__body,
+    .blob__ring,
+    .blob__inner {
       height: 90%;
       align-self: center;
     }
-
-
-    
   }
 </style>
