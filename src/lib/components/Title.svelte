@@ -11,8 +11,6 @@
     noisePhase: number
   }
 
-  // ─── Props ───────────────────────────────────────────────────────────────────
-
   export let title                  = 'Welcome'
   export let subtitle               = 'Something worth reading'
   export let subtitle2              = 'And seeing by yourself'
@@ -23,8 +21,6 @@
   export let lerpFactor             = 0.055
   export let intersectionThreshold  = 0.5
 
-  // ─── State ───────────────────────────────────────────────────────────────────
-
   let letters:         Letter[]   = []
   let letterOffsets:   { ox: number; oy: number }[] = []
   let subtitleVisible  = false
@@ -34,15 +30,11 @@
   let currentRotX = 0, currentRotY = 0
   let targetRotX  = 0, targetRotY  = 0
 
-  let container: HTMLDivElement
-  let letterEls: (HTMLSpanElement | null)[] = []
+  let container:  HTMLDivElement
+  let letterEls:  (HTMLSpanElement | null)[] = []
 
   let rafId:   number
   let pending: ReturnType<typeof setTimeout>[] = []
-
-  // ─── Rect cache — updated lazily, not every frame ────────────────────────────
-  // getBoundingClientRect() is a layout read that forces reflow.
-  // We cache rects and only invalidate on resize.
 
   let cachedRects: (DOMRect | null)[] = []
   let rectsDirty = true
@@ -51,13 +43,10 @@
 
   function refreshRects(): void {
     for (let i = 0; i < letterEls.length; i++) {
-      const el = letterEls[i]
-      cachedRects[i] = el ? el.getBoundingClientRect() : null
+      cachedRects[i] = letterEls[i] ? letterEls[i]!.getBoundingClientRect() : null
     }
     rectsDirty = false
   }
-
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   function buildLetters(text: string): Letter[] {
     let count = 0
@@ -67,8 +56,6 @@
       return { char, isSpace, visible: false, fromAbove, noisePhase: count * 1.6180339887 }
     })
   }
-
-  // ─── Entrance / exit ─────────────────────────────────────────────────────────
 
   function playAnimation(): void {
     pending.push(setTimeout(() => { blobVisible = true }, 80))
@@ -83,7 +70,6 @@
       setTimeout(() => { subtitleVisible  = true }, afterLetters + 200),
       setTimeout(() => { subtitle2Visible = true }, afterLetters + 340),
     )
-    // Letters moved — invalidate cached rects after entrance
     setTimeout(invalidateRects, afterLetters + 400)
   }
 
@@ -99,18 +85,16 @@
     requestAnimationFrame(() => container?.classList.remove('no-transition'))
   }
 
-  // ─── RAF loop ────────────────────────────────────────────────────────────────
-
-    let isTouchDevice = false
+  let isTouchDevice = false
 
   function tick(timestamp: number): void {
-    // Skip cursor-based effects on touch/mobile devices
-    if (isTouchDevice) { rafId = requestAnimationFrame(tick); return }
+    // Touch: no cursor effects, but still need RAF to hold reference
+    // Actually on touch we skip entirely — cancel RAF and don't reschedule
+    if (isTouchDevice) return
 
     const cx = $mouse.x
     const cy = $mouse.y
 
-    // 1 — Container tilt
     targetRotX = -((cy / window.innerHeight) * 2 - 1) * maxTilt
     targetRotY =  ((cx / window.innerWidth)  * 2 - 1) * maxTilt
     currentRotX = lerp(currentRotX, targetRotX, lerpFactor)
@@ -118,7 +102,6 @@
     container?.style.setProperty('--rot-x', `${currentRotX.toFixed(3)}deg`)
     container?.style.setProperty('--rot-y', `${currentRotY.toFixed(3)}deg`)
 
-    // Refresh rects once per dirty cycle (e.g. after entrance animation)
     if (rectsDirty) refreshRects()
 
     const PULL_RADIUS  = 240
@@ -161,8 +144,6 @@
     rafId = requestAnimationFrame(tick)
   }
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────────
-
   onMount(() => {
     isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     letters       = buildLetters(title)
@@ -173,8 +154,14 @@
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) playAnimation()
-          else                      hideImmediately()
+          if (entry.isIntersecting) {
+            playAnimation()
+            // Start RAF only on non-touch
+            if (!isTouchDevice) rafId = requestAnimationFrame(tick)
+          } else {
+            hideImmediately()
+            cancelAnimationFrame(rafId)
+          }
         }
       },
       { threshold: intersectionThreshold },
@@ -182,7 +169,6 @@
 
     observer.observe(target)
     window.addEventListener('resize', invalidateRects, { passive: true })
-    rafId = requestAnimationFrame(tick)
 
     return (): void => {
       for (const id of pending) clearTimeout(id)
@@ -195,6 +181,7 @@
 
 <div
   class="container"
+  class:touch={isTouchDevice}
   bind:this={container}
   style="--rot-x: 0deg; --rot-y: 0deg;"
 >
@@ -243,10 +230,17 @@
     will-change: transform;
   }
 
+  /* On touch: disable 3D perspective entirely — saves compositing cost */
+  .container.touch {
+    transform: none;
+    will-change: auto;
+    transform-style: flat;
+  }
+
   .glass-blob {
     position: absolute;
-    width:  clamp(320px, 70vw, 920px);
-    height: clamp(320px, 30vw, 650px);
+    width:  clamp(280px, 70vw, 920px);
+    height: clamp(200px, 30vw, 650px);
     --rx: 58% 42% 52% 48%; --ry: 44% 56% 42% 58%; --dur: 11s; --del: 0s;
     z-index: 0;
     pointer-events: none;
@@ -265,8 +259,9 @@
     position: absolute; inset: 0;
     border-radius: var(--rx) / var(--ry);
     background: rgba(255,255,255,0.06);
-    backdrop-filter: blur(12px) saturate(1.4);
+    /* Prefixed version first for older Safari */
     -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    backdrop-filter: blur(12px) saturate(1.4);
     animation: blob-morph var(--dur) ease-in-out var(--del) infinite alternate;
     z-index: 0;
     will-change: border-radius;
@@ -320,6 +315,12 @@
     transform: translateY(0) translate(var(--ox, 0px), var(--oy, 0px));
   }
 
+  /* On touch: letters don't move after entrance — remove will-change */
+  .touch .letter--visible {
+    will-change: auto;
+    transform: translateY(0);
+  }
+
   .letter--space { opacity: 1; transform: none; transition: none; white-space: pre; }
 
   .subtitle {
@@ -337,14 +338,37 @@
   .subtitle--right { transform: translateX(50px); }
   .subtitle--visible { opacity: 1; transform: translateX(0); }
 
-  @media (max-width: 600px) {
-    .subtitle--left,
-    .subtitle--right { text-align: center; padding-inline: 1rem; white-space: normal; }
-  }
-
   @media (max-width: 800px) {
     .container { padding: 1.2rem 1rem; gap: 1rem; }
     .title { font-size: clamp(2.2rem, 14vw, 4rem); }
-    .subtitle { font-size: clamp(0.8rem, 3.5vw, 1.1rem); white-space: normal; text-align: center; }
+    .subtitle {
+      font-size: clamp(0.85rem, 3.5vw, 1.1rem);
+      white-space: normal;
+      text-align: center;
+      padding-inline: 1rem;
+    }
+    .subtitle--left,
+    .subtitle--right { text-align: center; }
+    /* Simpler entrance on mobile — no horizontal slide */
+    .subtitle--left  { transform: translateY(8px); }
+    .subtitle--right { transform: translateY(8px); }
+
+    /* Glass blob: simpler on mobile (no backdrop-filter = faster) */
+    .glass-blob__body {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: rgba(255,255,255,0.08);
+    }
+    /* Reduce morph animation cost on mobile */
+    .glass-blob__body,
+    .glass-blob__ring {
+      animation-duration: 18s;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .letter       { transition: opacity 0.3s ease; }
+    .glass-blob__body,
+    .glass-blob__ring { animation: none; }
   }
 </style>

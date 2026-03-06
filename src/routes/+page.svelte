@@ -75,13 +75,27 @@
 
 <style>
   :global(html) {
+    /* scroll-snap-type: mandatory — works everywhere */
     scroll-snap-type: y mandatory;
-    timeline-scope: --section;
-    scroll-behavior: smooth;
+    /* NO scroll-behavior: smooth here — it breaks snap on iOS Safari */
+    /* NO timeline-scope — that's a Chrome-only CSS feature, killed mobile */
+    overflow-y: scroll;
+    overflow-x: hidden;
+    /* Prevent elastic overscroll from hiding content on iOS */
+    overscroll-behavior-y: none;
   }
 
   :global(body) {
     margin: 0;
     background: #0b0c0e;
+    /* Ensure body doesn't block scroll */
+    overflow: visible;
+  }
+
+  /* Native smooth scroll only on desktop where it doesn't fight iOS snap */
+  @media (min-width: 801px) {
+    :global(html) {
+      scroll-behavior: smooth;
+    }
   }
 </style>

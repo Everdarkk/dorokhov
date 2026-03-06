@@ -16,30 +16,27 @@
   export let blending         = 'hard-light'
   export let fadeDelay        = 0
   export let fadeDuration     = 1800
-  export let sectionId        = ''   // must match the parent Section's id
+  export let sectionId        = ''
 
   let visible      = false
   let interBubble: HTMLDivElement
   let curX = 0, curY = 0
   let rafId: number
   let timer: ReturnType<typeof setTimeout>
-  let active = false
-
-  // ─── RAF loop — only runs when this section is active ────────────────────────
+  let active       = false
+  let isTouchDevice = false
 
   function move(): void {
-    // Lerp toward mouse using the global store values (no own listener needed)
-    const tgX = $mouse.x
-    const tgY = $mouse.y
-    curX += (tgX - curX) / 20
-    curY += (tgY - curY) / 20
-    if (interBubble) {
-      interBubble.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`
+    // Touch devices: no interactive bubble — saves a RAF loop
+    if (!isTouchDevice) {
+      curX += ($mouse.x - curX) / 20
+      curY += ($mouse.y - curY) / 20
+      if (interBubble) {
+        interBubble.style.transform = `translate(${Math.round(curX)}px, ${Math.round(curY)}px)`
+      }
     }
     if (active) rafId = requestAnimationFrame(move)
   }
-
-  // ─── React to which section is on screen ─────────────────────────────────────
 
   $: {
     if (sectionId) {
@@ -55,7 +52,8 @@
   }
 
   onMount(() => {
-    // If no sectionId provided, fall back to always-on (backwards compat)
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+
     if (!sectionId) {
       active = true
       rafId  = requestAnimationFrame(move)
@@ -77,11 +75,10 @@
   })
 </script>
 
-<!-- STRUCTURE -->
-<!-- Hidden SVG registers the goo filter -->
+<!-- Hidden SVG registers the goo filter — one copy is fine (id is global) -->
 <svg xmlns="http://www.w3.org/2000/svg" class="svg-filter" aria-hidden="true">
   <defs>
-    <filter id="goo">
+    <filter id="goo-{sectionId || 'default'}">
       <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
       <feColorMatrix in="blur" mode="matrix"
         values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo" />
@@ -100,6 +97,7 @@
     --color-interactive: {colorInteractive};
     --circle-size: {circleSize}; --blending: {blending};
     --fade-duration: {fadeDuration}ms;
+    --goo-filter: url(#goo-{sectionId || 'default'});
   "
 >
   <div class="gradients-container">
@@ -108,7 +106,9 @@
     <div class="g3"></div>
     <div class="g4"></div>
     <div class="g5"></div>
-    <div class="interactive" bind:this={interBubble}></div>
+    {#if !isTouchDevice}
+      <div class="interactive" bind:this={interBubble}></div>
+    {/if}
   </div>
 </div>
 
@@ -123,19 +123,16 @@
     z-index: 0;
     opacity: 0;
     transition: opacity var(--fade-duration, 1800ms) ease;
-    /* Prevents repaints on the main layer when bubbles animate */
-    isolation: isolate;
+    /* isolation:isolate removed — it breaks stacking on iOS Safari in fixed els */
   }
 
   .gradient-bg.visible { opacity: 1; }
 
   .gradients-container {
-    filter: url(#goo) blur(40px);
+    filter: var(--goo-filter) blur(40px);
     width: 100%;
     height: 100%;
     position: relative;
-    /* Own compositing layer so the filter doesn't repaint parent */
-    will-change: contents;
   }
 
   .g1, .g2, .g3, .g4, .g5, .interactive {
@@ -172,7 +169,7 @@
   }
 
   .g2 {
-    background: radial-gradient(circle at center, rgba(var(--color2), 0.8) 0%, rgba(var(--color2), 0) 50%) no-replace;
+    background: radial-gradient(circle at center, rgba(var(--color2), 0.8) 0%, rgba(var(--color2), 0) 50%) no-repeat;
     width: var(--circle-size); height: var(--circle-size);
     top: calc(50% - var(--circle-size) / 2); left: calc(50% - var(--circle-size) / 2);
     transform-origin: calc(50% - 400px);
@@ -215,5 +212,17 @@
     top: -50%; left: -50%;
     opacity: 0.7;
     will-change: transform;
+  }
+
+  /* On mobile: reduce animation count to save battery/GPU */
+  @media (max-width: 800px) {
+    .g3, .g5 { display: none; }
+    .g1 { animation-duration: 40s; }
+    .g2 { animation-duration: 28s; }
+    .g4 { animation-duration: 52s; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .g1, .g2, .g3, .g4, .g5 { animation: none; }
   }
 </style>

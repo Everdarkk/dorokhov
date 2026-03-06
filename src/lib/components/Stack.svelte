@@ -12,8 +12,6 @@
   import { sectionAnimation } from '$lib/utils/sectionAnimation'
   import SectionHeader from '$lib/components/SectionHeader.svelte'
 
-  // ─── Reactive state ───────────────────────────────────────────────────────
-
   let eyebrowVisible         = false
   let titleVisible           = false
   let cardVisible: boolean[] = techCards.map(() => false)
@@ -21,13 +19,9 @@
   let hoveredIndex: number | null = null
   let cursorX = 0, cursorY = 0
 
-  // ─── DOM refs ──────────────────────────────────────────────────────────────
-
   let container: HTMLDivElement
   let cardEls:   HTMLElement[]  = []
   let popupEl:   HTMLDivElement
-
-  // ─── Animation composable ─────────────────────────────────────────────────
 
   const anim = sectionAnimation(
     techCards,
@@ -40,10 +34,12 @@
     },
   )
 
-  const playAnimation  = () => anim.play()
-  const hideImmediately = () => { anim.hide(techCards.length, container); hoveredIndex = null; resetCardTilts(cardEls) }
-
-  // ─── Card interactions ────────────────────────────────────────────────────
+  const playAnimation   = () => anim.play()
+  const hideImmediately = () => {
+    anim.hide(techCards.length, container)
+    hoveredIndex = null
+    resetCardTilts(cardEls)
+  }
 
   const tiltHandler = createCardTiltHandler(() => cardEls, { maxRot: 18 })
 
@@ -57,21 +53,25 @@
 
   $: activeCard = hoveredIndex !== null ? techCards[hoveredIndex] : null
 
-  // ─── Lifecycle ────────────────────────────────────────────────────────────
-
   let stopPopup:    () => void
   let stopObserver: () => void
   let isTouchDevice = false
 
   onMount(() => {
     isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
-    stopPopup = startPopupLoop(
-      () => popupEl,
-      () => ({ x: cursorX, y: cursorY }),
-      () => hoveredIndex !== null,
-      () => hoveredIndex !== null ? (techCards[hoveredIndex]?.accent2 ?? null) : null,
-    )
+
+    // Popup only makes sense on desktop (hover)
+    stopPopup = isTouchDevice
+      ? () => {}
+      : startPopupLoop(
+          () => popupEl,
+          () => ({ x: cursorX, y: cursorY }),
+          () => hoveredIndex !== null,
+          () => hoveredIndex !== null ? (techCards[hoveredIndex]?.accent2 ?? null) : null,
+        )
+
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
+
     if (!isTouchDevice) window.addEventListener('mousemove', onMouseMove)
     return () => {
       anim.queue.clear(); stopPopup(); stopObserver()
@@ -85,7 +85,6 @@
   })
 </script>
 
-<!-- STRUCTURE -->
 <div class="stack" bind:this={container}>
 
   <SectionHeader
@@ -127,15 +126,18 @@
     {/each}
   </div>
 
-  <div class="popup" bind:this={popupEl} aria-hidden="true">
-    {#if activeCard}
-      <div class="popup__header">
-        <img class="popup__icon" src={activeCard.icon} alt="" aria-hidden="true" width="22" height="22" />
-        <span class="popup__name">{activeCard.name}</span>
-      </div>
-      <p class="popup__summary">{activeCard.summary}</p>
-    {/if}
-  </div>
+  <!-- Popup only rendered/used on desktop -->
+  {#if !isTouchDevice}
+    <div class="popup" bind:this={popupEl} aria-hidden="true">
+      {#if activeCard}
+        <div class="popup__header">
+          <img class="popup__icon" src={activeCard.icon} alt="" aria-hidden="true" width="22" height="22" />
+          <span class="popup__name">{activeCard.name}</span>
+        </div>
+        <p class="popup__summary">{activeCard.summary}</p>
+      {/if}
+    </div>
+  {/if}
 
 </div>
 
@@ -144,6 +146,7 @@
 
   .stack {
     width: 100%;
+    height: 100vh;
     height: 100dvh;
     display: grid;
     grid-template-rows: auto 1fr;
@@ -178,9 +181,10 @@
   .blob__body {
     background: radial-gradient(
       ellipse at 35% 28%,
-      color-mix(in srgb, var(--accent2) 60%, white 40%) 0%,
-      var(--accent1) 50%,
-      color-mix(in srgb, var(--accent1) 50%, black 50%) 100%
+      /* color-mix fallback: use a lighter accent blend */
+      var(--accent2, #888) 0%,
+      var(--accent1, #444) 50%,
+      #111 100%
     );
   }
 
@@ -195,8 +199,8 @@
   .blob:hover .blob__body,
   .blob:focus-visible .blob__body {
     box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--accent2) 70%, transparent 30%),
-      0 0 60px 8px color-mix(in srgb, var(--accent2) 45%, transparent 55%);
+      0 0 0 2px var(--accent2, rgba(255,255,255,0.5)),
+      0 0 60px 8px rgba(0,0,0,0.3);
   }
 
   .blob__inner {

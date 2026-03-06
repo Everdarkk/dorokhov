@@ -174,8 +174,13 @@
 
   @media (max-width: 450px) {
     .section-nav {
-      left: 12px;
-      top: 5rem;
+      /* Move to bottom-center on small phones so it doesn't overlap content */
+      left: 50%;
+      top: auto;
+      bottom: 0.5rem;
+      transform: translateX(-50%);
+      flex-direction: row;
+      gap: 10px;
     }
     .label { display: none; }
   }

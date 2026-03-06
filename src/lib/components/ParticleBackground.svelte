@@ -13,6 +13,7 @@
   // ─── Config ──────────────────────────────────────────────────────────────────
 
   const COUNT         = 35
+  const COUNT_MOBILE  = 12      // aggressive reduction on phones
   const SPEED         = 1.0
   const SPEED_SPREAD  = 0.3
   const SIZE_MIN      = 14
@@ -25,7 +26,6 @@
   const ROT_MIN       = 0.003
   const ROT_MAX       = 0.010
 
-  // Pre-built colour strings — avoid template literal creation every frame
   const COLORS: [number, number, number][] = [
     [130, 155, 215], [160, 125, 225], [ 80, 190, 195],
     [220, 155, 100], [145, 215, 140], [225, 120, 155], [175, 175, 205],
@@ -38,9 +38,7 @@
     x: number; y: number; vx: number; vy: number
     size: number; angle: number; rotSpeed: number
     shape: ShapeKind; r: number; g: number; b: number; alpha: number
-    // Pre-built stroke string so we don't template-literal every frame
-    stroke: string
-    glow:   string
+    stroke: string; glow: string
   }
 
   let canvas:  HTMLCanvasElement
@@ -49,11 +47,13 @@
   let rafId:   number
   let timer:   ReturnType<typeof setTimeout>
   let W = 0, H = 0
-  let isActive = false
+  let isActive    = false
+  let isMobile    = false
+  let isTouchDevice = false
 
-  // Read mouse from global store — no own listener
   let mouseX = -9999, mouseY = -9999
-  $: { mouseX = $mouse.x; mouseY = $mouse.y }
+  // Only track mouse on non-touch
+  $: if (!isTouchDevice) { mouseX = $mouse.x; mouseY = $mouse.y }
 
   let particles: Particle[] = []
 
@@ -68,9 +68,9 @@
       size: SIZE_MIN + Math.random() * (SIZE_MAX - SIZE_MIN),
       angle: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() < 0.5 ? 1 : -1) * (ROT_MIN + Math.random() * (ROT_MAX - ROT_MIN)),
-      shape: SHAPES[Math.floor(Math.random() * SHAPES.length)],
+      // Mobile: use only circle shapes (cheapest to draw)
+      shape: isMobile ? 'circle' : SHAPES[Math.floor(Math.random() * SHAPES.length)],
       r, g, b, alpha,
-      // Cache colour strings — saves string interpolation each frame
       stroke: `rgba(${r},${g},${b},${alpha.toFixed(2)})`,
       glow:   `rgba(${r},${g},${b},0.55)`,
     }
@@ -80,13 +80,11 @@
     W = canvas.width  = window.innerWidth
     H = canvas.height = window.innerHeight
     ctx = canvas.getContext('2d')!
-    // Hint browser that we'll be using the canvas heavily for compositing
     ctx.imageSmoothingEnabled = false
-    const count = W < 800 ? Math.floor(COUNT * 0.45) : COUNT
+    isMobile = W < 800
+    const count = isMobile ? COUNT_MOBILE : COUNT
     particles = Array.from({ length: count }, makeParticle)
   }
-
-  // ─── Shape renderer — shadowBlur only on cross (cheapest shape count) ────────
 
   function drawShape(p: Particle): void {
     const s = p.size
@@ -94,9 +92,11 @@
     ctx.translate(p.x, p.y)
     ctx.rotate(p.angle)
 
-    // shadowBlur is expensive — only apply it, don't repeat ctx state changes
-    ctx.shadowColor = p.glow
-    ctx.shadowBlur  = 16
+    // Skip expensive shadowBlur on mobile
+    if (!isMobile) {
+      ctx.shadowColor = p.glow
+      ctx.shadowBlur  = 16
+    }
     ctx.strokeStyle = p.stroke
     ctx.lineJoin    = 'round'
     ctx.lineCap     = 'round'
@@ -142,14 +142,17 @@
 
   function update(): void {
     for (const p of particles) {
-      const cdx = p.x - mouseX, cdy = p.y - mouseY
-      const cdst = cdx * cdx + cdy * cdy
-      if (cdst < CURSOR_RADIUS * CURSOR_RADIUS && cdst > 0.01) {
-        const mag  = Math.sqrt(cdst)
-        const norm = (1 - mag / CURSOR_RADIUS) ** 1.5
-        p.vx += (cdx / mag) * CURSOR_FORCE * norm
-        p.vy += (cdy / mag) * CURSOR_FORCE * norm
-        p.rotSpeed += Math.sign(p.rotSpeed) * norm * 0.006
+      // Cursor interaction — skip on touch
+      if (!isTouchDevice) {
+        const cdx = p.x - mouseX, cdy = p.y - mouseY
+        const cdst = cdx * cdx + cdy * cdy
+        if (cdst < CURSOR_RADIUS * CURSOR_RADIUS && cdst > 0.01) {
+          const mag  = Math.sqrt(cdst)
+          const norm = (1 - mag / CURSOR_RADIUS) ** 1.5
+          p.vx += (cdx / mag) * CURSOR_FORCE * norm
+          p.vy += (cdy / mag) * CURSOR_FORCE * norm
+          p.rotSpeed += Math.sign(p.rotSpeed) * norm * 0.006
+        }
       }
 
       p.x += p.vx; p.y += p.vy; p.angle += p.rotSpeed
@@ -167,29 +170,31 @@
       if (p.y + edge > H)  { p.y = H - edge; p.vy = -Math.abs(p.vy); p.rotSpeed *= -0.9 }
     }
 
-    // O(n²) collision — 35 particles = 595 pairs, acceptable
-    for (let i = 0; i < particles.length; i++) {
-      const a = particles[i]
-      for (let j = i + 1; j < particles.length; j++) {
-        const b   = particles[j]
-        const dx  = b.x - a.x, dy = b.y - a.y
-        const d2  = dx * dx + dy * dy
-        const minD = a.size + b.size + 2
-        if (d2 < minD * minD && d2 > 0.01) {
-          const dist = Math.sqrt(d2)
-          const nx = dx / dist, ny = dy / dist
-          const ov = (minD - dist) * 0.5
-          a.x -= nx * ov; a.y -= ny * ov; b.x += nx * ov; b.y += ny * ov
-          const dvx = a.vx - b.vx, dvy = a.vy - b.vy
-          const dot = dvx * nx + dvy * ny
-          if (dot > 0) {
-            a.vx -= dot * nx; a.vy -= dot * ny
-            b.vx += dot * nx; b.vy += dot * ny
-            const spin = dot * 0.04
-            a.rotSpeed += spin * (Math.random() < 0.5 ? 1 : -1)
-            b.rotSpeed += spin * (Math.random() < 0.5 ? 1 : -1)
+    // O(n²) collision — skip on mobile to save CPU
+    if (!isMobile) {
+      for (let i = 0; i < particles.length; i++) {
+        const a = particles[i]
+        for (let j = i + 1; j < particles.length; j++) {
+          const b   = particles[j]
+          const dx  = b.x - a.x, dy = b.y - a.y
+          const d2  = dx * dx + dy * dy
+          const minD = a.size + b.size + 2
+          if (d2 < minD * minD && d2 > 0.01) {
+            const dist = Math.sqrt(d2)
+            const nx = dx / dist, ny = dy / dist
+            const ov = (minD - dist) * 0.5
+            a.x -= nx * ov; a.y -= ny * ov; b.x += nx * ov; b.y += ny * ov
+            const dvx = a.vx - b.vx, dvy = a.vy - b.vy
+            const dot = dvx * nx + dvy * ny
+            if (dot > 0) {
+              a.vx -= dot * nx; a.vy -= dot * ny
+              b.vx += dot * nx; b.vy += dot * ny
+              const spin = dot * 0.04
+              a.rotSpeed += spin * (Math.random() < 0.5 ? 1 : -1)
+              b.rotSpeed += spin * (Math.random() < 0.5 ? 1 : -1)
+            }
+            normaliseSpeed(a); normaliseSpeed(b)
           }
-          normaliseSpeed(a); normaliseSpeed(b)
         }
       }
     }
@@ -198,26 +203,26 @@
   function draw(): void {
     ctx.clearRect(0, 0, W, H)
 
-    // Batch all lines in one path per pair — fewer state switches
-    for (let i = 0; i < particles.length; i++) {
-      const a = particles[i]
-      for (let j = i + 1; j < particles.length; j++) {
-        const b  = particles[j]
-        const dx = b.x - a.x, dy = b.y - a.y
-        const d2 = dx * dx + dy * dy
-        if (d2 < LINK_DIST_SQ) {
-          const prox = 1 - Math.sqrt(d2) / LINK_DIST
-          // Use cached r/g/b values, single integer shift
-          ctx.beginPath()
-          ctx.strokeStyle = `rgba(${(a.r+b.r)>>1},${(a.g+b.g)>>1},${(a.b+b.b)>>1},${(prox * 0.20).toFixed(2)})`
-          ctx.lineWidth   = 0.8 + prox * 0.7
-          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y)
-          ctx.stroke()
+    // Connection lines — skip on mobile
+    if (!isMobile) {
+      for (let i = 0; i < particles.length; i++) {
+        const a = particles[i]
+        for (let j = i + 1; j < particles.length; j++) {
+          const b  = particles[j]
+          const dx = b.x - a.x, dy = b.y - a.y
+          const d2 = dx * dx + dy * dy
+          if (d2 < LINK_DIST_SQ) {
+            const prox = 1 - Math.sqrt(d2) / LINK_DIST
+            ctx.beginPath()
+            ctx.strokeStyle = `rgba(${(a.r+b.r)>>1},${(a.g+b.g)>>1},${(a.b+b.b)>>1},${(prox * 0.20).toFixed(2)})`
+            ctx.lineWidth   = 0.8 + prox * 0.7
+            ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y)
+            ctx.stroke()
+          }
         }
       }
     }
 
-    // Reset shadow before lines to avoid glow on connection lines
     ctx.shadowBlur = 0
     for (const p of particles) drawShape(p)
   }
@@ -228,8 +233,6 @@
     draw()
     rafId = requestAnimationFrame(tick)
   }
-
-  // ─── Pause/resume based on active section ────────────────────────────────────
 
   $: if (sectionId) {
     const nowActive = $activeSection === sectionId
@@ -244,13 +247,12 @@
 
   function onResize(): void {
     if (!canvas) return
-    const wasMobile = W < 800
+    const wasMobile = isMobile
     W = canvas.width  = window.innerWidth
     H = canvas.height = window.innerHeight
-    const isMobileNow = W < 800
-    // Re-create particles if we crossed the mobile threshold
-    if (wasMobile !== isMobileNow) {
-      const count = isMobileNow ? Math.floor(COUNT * 0.45) : COUNT
+    isMobile = W < 800
+    if (wasMobile !== isMobile) {
+      const count = isMobile ? COUNT_MOBILE : COUNT
       particles = Array.from({ length: count }, makeParticle)
       return
     }
@@ -262,14 +264,14 @@
   }
 
   onMount(() => {
+    isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
     init()
-    // If no sectionId, always run (backwards compat)
     if (!sectionId) {
       isActive = true
       rafId    = requestAnimationFrame(tick)
     }
     timer = setTimeout(() => { visible = true }, fadeDelay)
-    window.addEventListener('resize', onResize)
+    window.addEventListener('resize', onResize, { passive: true })
     return () => {
       isActive = false
       cancelAnimationFrame(rafId)
@@ -286,7 +288,6 @@
   })
 </script>
 
-<!-- STRUCTURE -->
 <div
   class="particle-bg"
   class:visible
@@ -301,7 +302,6 @@
     opacity: 0;
     transition: opacity var(--fade, 1400ms) ease;
     pointer-events: none;
-    /* Own layer prevents compositing interference with content above */
     will-change: opacity;
   }
   .particle-bg.visible { opacity: 1; }

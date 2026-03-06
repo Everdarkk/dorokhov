@@ -223,7 +223,7 @@
       >
         <div
           class="blob__body"
-          style="background: radial-gradient(ellipse at 35% 30%, color-mix(in srgb, var(--accent2) 65%, white 35%) 0%, var(--accent1) 45%, color-mix(in srgb, var(--accent1) 55%, black 45%) 100%)"
+          style="background: radial-gradient(ellipse at 35% 30%, var(--accent2, #888) 0%, var(--accent1, #444) 45%, #111 100%)"
         ></div>
         <div class="blob__shine"></div>
         <div
@@ -281,6 +281,7 @@
   /* ── Section ─────────────────────────────────────────────────────────────── */
   .about {
     width: 100%;
+    height: 100vh;
     height: 100dvh;
     display: grid;
     /* rows: header | cards  (pagination injected on mobile via grid-row) */
@@ -439,7 +440,7 @@
   }
 
   .blob:hover .blob__body {
-    box-shadow: 0 0 70px 12px color-mix(in srgb, var(--accent2) 55%, transparent 45%);
+    box-shadow: 0 0 70px 12px rgba(0,0,0,0.3);
   }
 
   /* ── Tablet ──────────────────────────────────────────────────────────────── */

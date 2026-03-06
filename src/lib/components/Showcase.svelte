@@ -14,16 +14,12 @@
   import SectionHeader from '$lib/components/SectionHeader.svelte'
   import Pagination    from '$lib/components/Pagination.svelte'
 
-  // ─── Constants ────────────────────────────────────────────────────────────
-
   const PER_PAGE        = 4
   const PER_PAGE_MOBILE = 1
   const CARD_STAGGER    = 120
   const ENTRANCE_MS     = 700
   const SLIDE_OUT_MS    = 320
   const DRAG_THRESHOLD  = 60
-
-  // ─── Reactive state ───────────────────────────────────────────────────────
 
   let eyebrowVisible         = false
   let titleVisible           = false
@@ -38,25 +34,19 @@
 
   let cursorX = 0, cursorY = 0
 
-  // ─── DOM refs ──────────────────────────────────────────────────────────────
-
   let container:   HTMLDivElement
   let cardEls:     HTMLElement[]               = []
   let videoEls:    (HTMLVideoElement | null)[] = []
   let popupEl:     HTMLDivElement
   let clipPathEls: (SVGPathElement | null)[]   = []
 
-  // ─── Derived (reactive) ───────────────────────────────────────────────────
-
   $: perPage      = isMobile ? PER_PAGE_MOBILE : PER_PAGE
   $: pageCount    = Math.ceil(projects.length / perPage)
   $: pageProjects = projects.slice(currentPage * perPage, currentPage * perPage + perPage)
   $: activeProject = hoveredIndex !== null ? pageProjects[hoveredIndex] ?? null : null
 
-  // ─── Animation composable ─────────────────────────────────────────────────
-
   const anim = sectionAnimation(
-    projects,   // only used for default itemCount fallback
+    projects,
     { introDelay: 200, titleDelay: 180, cardsDelay: 460, cardStagger: CARD_STAGGER, entranceMs: ENTRANCE_MS },
     (s) => {
       eyebrowVisible = s.eyebrowVisible
@@ -66,13 +56,8 @@
     },
   )
 
-  // ─── Entrance / hide ──────────────────────────────────────────────────────
-
   function schedulePageEntrance(): void {
-    // Use anim's queue directly so we share queue-clear semantics
     const perPageCount = pageProjects.length
-
-    // Reset cards for new page
     cardVisible = Array(perPageCount).fill(false)
 
     for (let i = 0; i < perPageCount; i++) {
@@ -92,9 +77,7 @@
   }
 
   function playAnimation(): void {
-    // Header via composable (introDelay + titleDelay built-in)
     anim.play(pageProjects.length)
-    // Extra: touch devices autoplay after cards settle
     if (isTouchDevice) {
       const lastMs = 200 + 180 + 460 + (pageProjects.length - 1) * CARD_STAGGER + ENTRANCE_MS
       anim.queue.schedule(() => {
@@ -109,8 +92,6 @@
     videoEls.forEach((v) => { if (v) { v.pause(); v.currentTime = 0 } })
     resetCardTilts(cardEls)
   }
-
-  // ─── Page navigation ──────────────────────────────────────────────────────
 
   function goToPage(idx: number): void {
     if (idx < 0 || idx >= pageCount || idx === currentPage) return
@@ -137,8 +118,6 @@
   const nextPage = () => goToPage(currentPage + 1)
   const prevPage = () => goToPage(currentPage - 1)
 
-  // ─── Card interactions ────────────────────────────────────────────────────
-
   const tiltHandler = createCardTiltHandler(() => cardEls, { maxRot: 18 })
 
   function onMouseMove(e: MouseEvent): void {
@@ -157,8 +136,6 @@
     const v = videoEls[i]
     if (v) { v.pause(); v.currentTime = 0 }
   }
-
-  // ─── Drag / touch ─────────────────────────────────────────────────────────
 
   let isDragging    = false
   let dragStartX    = 0
@@ -199,8 +176,6 @@
     if (Math.abs(delta) > 50) delta < 0 ? nextPage() : prevPage()
   }
 
-  // ─── Responsive ───────────────────────────────────────────────────────────
-
   function checkMobile(): void {
     const was = isMobile
     isMobile   = window.innerWidth < 800
@@ -210,8 +185,6 @@
       schedulePageEntrance()
     }
   }
-
-  // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   let stopMask:     () => void
   let stopPopup:    () => void
@@ -236,8 +209,8 @@
     stopObserver = observeSection(findSnapSection(container), playAnimation, hideImmediately)
 
     if (!isTouchDevice) window.addEventListener('mousemove',   onMouseMove)
-    window.addEventListener('resize',      checkMobile)
-    window.addEventListener('pointermove', onWindowPointerMove)
+    window.addEventListener('resize',      checkMobile,            { passive: true })
+    window.addEventListener('pointermove', onWindowPointerMove,   { passive: true })
     window.addEventListener('pointerup',   onWindowPointerUp)
 
     return () => {
@@ -255,7 +228,6 @@
   })
 </script>
 
-<!-- STRUCTURE -->
 <div
   class="showcase"
   role="region"
@@ -275,14 +247,12 @@
     Мої <em>роботи</em>
   </SectionHeader>
 
-  <!-- Pagination — shared component, always visible when pageCount > 1 -->
   <Pagination
     count={pageCount}
     current={currentPage}
     on:change={(e) => goToPage(e.detail)}
   />
 
-  <!-- Card grid -->
   <div
     class="showcase__grid"
     class:showcase__grid--mobile={isMobile}
@@ -335,7 +305,7 @@
             bind:this={videoEls[i]}
             src={project.video}
             poster={project.poster}
-            muted playsinline loop preload="metadata"
+            muted playsinline loop preload="none"
             aria-hidden="true"
           ></video>
         </div>
@@ -343,30 +313,30 @@
     {/each}
   </div>
 
-  <!-- Popup tooltip (desktop only) -->
-  <div class="popup" bind:this={popupEl} aria-hidden="true">
-    {#if activeProject}
-      <p class="popup__name">{activeProject.name}</p>
-      <p class="popup__summary">{activeProject.summary}</p>
-      <div class="popup__tags">
-        {#each activeProject.tags as tag (tag)}
-          <span class="popup__tag">{tag}</span>
-        {/each}
-      </div>
-    {/if}
-  </div>
+  {#if !isTouchDevice}
+    <div class="popup" bind:this={popupEl} aria-hidden="true">
+      {#if activeProject}
+        <p class="popup__name">{activeProject.name}</p>
+        <p class="popup__summary">{activeProject.summary}</p>
+        <div class="popup__tags">
+          {#each activeProject.tags as tag (tag)}
+            <span class="popup__tag">{tag}</span>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
 </div>
 
 <style>
   @import '$lib/styles/blob-card.css';
 
-  /* ── Section wrapper ─────────────────────────────────────────────────────── */
   .showcase {
     width: 100%;
+    height: 100vh;
     height: 100dvh;
     display: grid;
-    /* rows: header | pagination | grid */
     grid-template-rows: auto auto 1fr;
     padding: 2rem 2rem 1.5rem;
     box-sizing: border-box;
@@ -378,7 +348,6 @@
     user-select: none;
   }
 
-  /* ── Desktop grid: 2×2 ───────────────────────────────────────────────────── */
   .showcase__grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -391,14 +360,12 @@
     min-height: 0;
   }
 
-  /* ── Mobile grid: single card ────────────────────────────────────────────── */
   .showcase__grid--mobile {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
     max-width: min(440px, calc(100vw - 1.7rem));
   }
 
-  /* ── Blob base transition ────────────────────────────────────────────────── */
   .showcase__grid .blob {
     cursor: pointer;
     min-height: 0;
@@ -409,14 +376,12 @@
       filter    0.45s ease;
   }
 
-  /* Hidden (before blob--visible) ── */
   .showcase__grid .blob:not(.blob--visible):not(.blob--slide-out) {
     opacity: 0;
     transform: scale(0.82) translateX(calc(var(--slide-dir, -1) * -60px));
     filter: blur(4px);
   }
 
-  /* Mobile slide-out ── */
   .showcase__grid--mobile .blob.blob--slide-out {
     opacity: 0;
     transform: scale(0.82) translateX(calc(var(--slide-dir, -1) * 90px));
@@ -428,24 +393,31 @@
     pointer-events: none;
   }
 
-  /* ── Blob body (glassmorphism for showcase) ──────────────────────────────── */
-
+  /* Glassmorphism blob body — prefixed for Safari */
   .blob__body {
     background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(12px) saturate(1.4);
     -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    backdrop-filter: blur(12px) saturate(1.4);
     transition: border-radius 0.9s ease, box-shadow 0.3s ease, background 0.35s ease;
+  }
+
+  /* On mobile: skip backdrop-filter (expensive on older phones) */
+  @media (max-width: 800px) {
+    .blob__body {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: rgba(255, 255, 255, 0.1);
+    }
   }
 
   .blob:hover .blob__body,
   .blob:focus-visible .blob__body {
     background: rgba(255, 255, 255, 0.10);
     box-shadow:
-      0 0 40px 8px color-mix(in srgb, var(--accent2) 30%, transparent 70%),
+      0 0 40px 8px rgba(0,0,0,0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
-  /* ── Blob ring ───────────────────────────────────────────────────────────── */
   .blob__ring {
     inset: 0;
     box-shadow:
@@ -454,7 +426,6 @@
     z-index: 3;
   }
 
-  /* ── SVG clip mask ───────────────────────────────────────────────────────── */
   .blob__mask-svg {
     position: absolute;
     width: 0;
@@ -463,7 +434,6 @@
     pointer-events: none;
   }
 
-  /* ── Video layer ─────────────────────────────────────────────────────────── */
   .blob__inner--video {
     position: absolute;
     inset: 0;
@@ -485,7 +455,6 @@
   .blob:hover .blob__video,
   .blob:focus-visible .blob__video { opacity: 0.85; }
 
-  /* ── Popup ───────────────────────────────────────────────────────────────── */
   .popup__summary { margin-bottom: 0.6rem; }
 
   .popup__tags {
@@ -501,19 +470,17 @@
     letter-spacing: 0.06em;
     padding: 0.2em 0.65em;
     border-radius: 100px;
-    background: color-mix(in srgb, var(--pop-accent, #fff) 18%, transparent 82%);
-    border: 1px solid color-mix(in srgb, var(--pop-accent, #fff) 35%, transparent 65%);
+    /* color-mix fallback */
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
     color: rgba(255, 255, 255, 0.85);
   }
 
-  /* ── Mobile overrides ────────────────────────────────────────────────────── */
   @media (max-width: 800px) {
     .showcase { padding: 0.85rem 0.85rem; gap: 0.4rem; }
     .showcase__grid { gap: 0.7rem; }
     .showcase__grid--mobile { max-width: min(440px, calc(100vw - 1.7rem)); }
-    /* Slightly more visible video on touch (no hover) */
     .blob__video { opacity: 0.7; }
-
   }
 
   @media (max-width: 450px) {

@@ -5,44 +5,46 @@
 
   type ScrollEffect = 'blink' | 'slide' | 'zoom'
 
-  export let effect:    ScrollEffect      = 'blink'
-  export let id:        string            = ''
+  export let effect:   ScrollEffect       = 'blink'
+  export let id:       string             = ''
+  export let dotColor: string | undefined = undefined
 
-  /**
-   * Optional colour for the Circles nav dots while this section is active.
-   * Accepts any CSS colour — e.g. 'azure', '#ff6b6b', 'rgba(255,100,50,0.9)'.
-   */
-  export let dotColor:  string | undefined = undefined
+  let sectionEl:  HTMLElement
+  let inView      = false
+  let mounted     = false
 
   onMount(() => {
-    const el = document.getElementById(id)
-    if (!el) return
+    mounted = true
 
     const observer = new IntersectionObserver(
       ([entry]) => {
+        inView = entry.isIntersecting
         if (entry.isIntersecting) {
           activeSection.set(id)
           if (dotColor) circlesColor.set(dotColor)
         }
       },
-      { threshold: 0.5 },
+      { threshold: 0.45 },
     )
 
-    observer.observe(el)
+    observer.observe(sectionEl)
     return () => observer.disconnect()
   })
+
+  $: contentClass = [
+    'content',
+    `effect-${effect}`,
+    inView   ? 'in-view'    : '',
+    mounted  ? 'is-mounted' : '',
+  ].filter(Boolean).join(' ')
 </script>
 
-
-<!-- STRUCTURE -->
 <section
   class="snap-section"
-  class:effect-blink={effect === 'blink'}
-  class:effect-slide={effect === 'slide'}
-  class:effect-zoom={effect === 'zoom'}
   {id}
+  bind:this={sectionEl}
 >
-  <div class="content">
+  <div class={contentClass}>
     <slot />
   </div>
 </section>
@@ -51,8 +53,10 @@
   .snap-section {
     scroll-snap-align: start;
     scroll-snap-stop: always;
+    /* dvh with vh fallback */
+    height: 100vh;
     height: 100dvh;
-    view-timeline: --section;
+    position: relative;
   }
 
   .content {
@@ -63,42 +67,82 @@
     flex-direction: column;
     align-items: center;
     justify-content: space-around;
-
-    animation-timeline: --section;
-    animation-fill-mode: both;
-    animation-timing-function: ease-in-out;
-
-    /* Promote to its own compositor layer once — cheaper than per-frame repaints */
-    will-change: opacity, filter;
+    opacity: 0;
+    visibility: hidden;
+    will-change: opacity;
   }
 
-  /* ── Effect: blink ── */
-  .effect-blink .content {
-    --blur: 0.6rem;
-    --contrast: 5;
-    animation-name: blink;
+  /* Enable transitions only after JS mount (avoids FOUC) */
+  .content.is-mounted {
+    transition:
+      opacity    0.5s ease,
+      filter     0.5s ease,
+      transform  0.5s ease,
+      visibility 0s   linear 0.5s;
   }
 
-  @keyframes blink {
-    0%, 100% { filter: blur(var(--blur)) contrast(var(--contrast)); opacity: 0; visibility: hidden; }
-    50%       { filter: blur(0) contrast(1); opacity: 1; visibility: visible; }
+  .content.in-view {
+    opacity:    1;
+    visibility: visible;
+    transition:
+      opacity    0.5s ease,
+      filter     0.5s ease,
+      transform  0.5s ease,
+      visibility 0s   linear 0s;
   }
 
-  /* ── Effect: slide ── */
-  .effect-slide .content { animation-name: slide; }
-
-  @keyframes slide {
-    0%   { transform: translate3d(100%, 0, 0);  opacity: 0; }
-    50%  { transform: none;                     opacity: 1; }
-    100% { transform: translate3d(-100%, 0, 0); opacity: 0; }
+  /* ── blink ── */
+  .effect-blink.is-mounted:not(.in-view) {
+    filter:  blur(0.45rem) contrast(3);
+    opacity: 0;
+  }
+  .effect-blink.in-view {
+    filter:  blur(0) contrast(1);
   }
 
-  /* ── Effect: zoom ── */
-  .effect-zoom .content { animation-name: zoom; }
+  /* ── slide ── */
+  .effect-slide.is-mounted:not(.in-view) {
+    transform: translate3d(50px, 0, 0);
+    opacity: 0;
+  }
+  .effect-slide.in-view {
+    transform: none;
+  }
 
-  @keyframes zoom {
-    0%   { filter: blur(4rem); transform: scale(0.6); opacity: 0; visibility: hidden; }
-    50%  { filter: blur(0);    transform: none;       opacity: 1; visibility: visible; }
-    100% { filter: blur(3rem); transform: scale(1.4); opacity: 0; visibility: hidden; }
+  /* ── zoom ── */
+  .effect-zoom.is-mounted:not(.in-view) {
+    filter:    blur(2.5rem);
+    transform: scale(0.72);
+    opacity:   0;
+  }
+  .effect-zoom.in-view {
+    filter:    blur(0);
+    transform: none;
+  }
+
+  /* Mobile: simpler fade + tiny lift — saves GPU */
+  @media (max-width: 800px) {
+    .effect-blink.is-mounted:not(.in-view),
+    .effect-slide.is-mounted:not(.in-view),
+    .effect-zoom.is-mounted:not(.in-view) {
+      filter:    none;
+      transform: translateY(14px);
+      opacity:   0;
+    }
+    .effect-blink.in-view,
+    .effect-slide.in-view,
+    .effect-zoom.in-view {
+      filter:    none;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .content,
+    .content.is-mounted {
+      transition: none !important;
+    }
+    .content { opacity: 0; visibility: hidden; }
+    .content.in-view { opacity: 1; visibility: visible; filter: none; transform: none; }
   }
 </style>

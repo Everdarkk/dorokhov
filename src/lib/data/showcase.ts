@@ -79,7 +79,7 @@ export const projects: ShowcaseProject[] = [
   },
   {
     id: 3,
-    name: 'AI News',
+    name: 'Новини AI News',
     summary: 'Новинний сервіс, з інтеграцією Google Gemini та різних API. Має функцію AI-статті (кожна стаття унікально генерується штучним інтелектом).',
     tags: ['Next.JS', 'Gemini CLI', 'Tailwind CSS'],
     video:  nn,
