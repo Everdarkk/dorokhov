@@ -439,10 +439,12 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
     width: 100%;
     height: 100%;
     justify-content: center;
+    /* Prevent blob from overflowing — leave ~2.5rem for label */
+    max-height: calc(100% - 0.5rem);
   }
 
   /* ── Project name label (mobile) ─────────────────────────────────────────── */
@@ -454,7 +456,12 @@
     color: rgba(0,0,0,0.75);
     letter-spacing: 0.04em;
     text-align: center;
-    padding-inline: 1rem;
+    padding-inline: 0.5rem;
+    /* Word wrap — never break mid-word */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    white-space: normal;
+    max-width: min(88vw, 420px);
     /* Entrance animation synced with blob */
     opacity: 0;
     transform: translateY(8px);
@@ -496,11 +503,11 @@
     pointer-events: none;
   }
 
-  /* ── Mobile blob: smaller, no hover effects ──────────────────────────────── */
+  /* ── Mobile blob: almost original size, just reserve space for label ─────── */
   .blob--mobile {
-    /* Slightly smaller than full-height — leaves room for label */
-    width:  min(72vw, 300px);
-    height: min(72vw, 300px);
+    /* Fill most of available height; label sits below in flex column */
+    width:  min(88vw, 420px);
+    height: min(88vw, 420px);
     flex-shrink: 0;
   }
 
@@ -587,8 +594,9 @@
 
   @media (max-width: 450px) {
     .blob--mobile {
-      width:  min(78vw, 260px);
-      height: min(78vw, 260px);
+      /* On small phones: use dvh to not overflow — blob takes ~75% of screen height minus label */
+      width:  min(88vw, calc(75dvh - 3rem));
+      height: min(88vw, calc(75dvh - 3rem));
     }
     .project-label { font-size: clamp(0.7rem, 3.5vw, 0.9rem); }
   }
