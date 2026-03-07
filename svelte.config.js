@@ -1,13 +1,21 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-static'
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	kit: {
-		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter()
-	}
-};
+	preprocess: vitePreprocess(),
 
-export default config;
+	kit: {
+		adapter: adapter({
+			pages:       'build',
+			assets:      'build',
+			// '200.html' — Vercel повертає цей файл для будь-якого шляху.
+			// Потрібно щоб посилання типу /?section=... не давали 404.
+			fallback:    '200.html',
+			precompress: false,  // Vercel стискає сам — не треба робити це двічі
+			strict:      true,   // помилка білду якщо якась сторінка не може бути prerendered
+		}),
+	},
+}
+
+export default config
